@@ -1,0 +1,32 @@
+# Build configuration for packaging Synapse with setuptools.
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+# Core project metadata published to package indexes and used by pip.
+[project]
+name = "synapse-agents"
+version = "0.1.0"
+description = "A coordination layer for multi-agent AI systems"
+authors = [{ name = "Max Herscovitch" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+keywords = ["ai", "agents", "multi-agent", "coordination", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+# Optional developer tools for local testing.
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+# Tell setuptools to discover the public synapse package and its subpackages.
+[tool.setuptools.packages.find]
+include = ["synapse", "synapse.*"]
