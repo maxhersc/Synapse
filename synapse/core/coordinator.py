@@ -47,8 +47,10 @@ class Coordinator:
     async def assign_task(self, task: Task) -> None:
         """Assign a task to the best-fit agent, deliver it, and persist its state."""
 
-        agent_id = await self._best_agent_for(task)
-        task.assigned_to = agent_id
+        agent_id = task.assigned_to
+        if agent_id is None:
+            agent_id = await self._best_agent_for(task)
+            task.assigned_to = agent_id
         if agent_id is None:
             await self._memory.set(f"task:{task.id}:status", task.status.value)
             return
@@ -169,6 +171,7 @@ class Coordinator:
             task = Task(
                 description=f"{strength}: {goal.description}",
                 goal_id=goal.id,
+                assigned_to=agent.id,
             )
             tasks.append(task)
         return tasks
