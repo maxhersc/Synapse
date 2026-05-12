@@ -1,101 +1,129 @@
 # Synapse
 
-**Synapse is a coordination layer for AI agent teams.**
+**A coordination layer for AI agent teams.**
 
-It is not a framework for building individual agents — it is an operating layer that lets multiple LLM-powered agents work together as a structured system.
+Synapse is not a framework for building individual agents — it is the operating layer that lets multiple LLM-powered agents work together as a structured system.
 
----
-
-## Overview
-
-Synapse enables developers to define a goal and a team of agents, and then delegates planning, task assignment, execution, and recovery automatically.
-
-Instead of manually chaining prompts or building brittle workflows, Synapse treats agents like members of an organization with roles, capabilities, and shared context.
+Instead of manually chaining prompts or building brittle workflows, Synapse treats agents like members of an organization: each one has a role, a set of capabilities, and access to shared context. You define the team and the goal. Synapse handles the rest.
 
 ---
 
-## Core Idea
+## Install
 
-* Agents are long-lived workers powered by LLMs
-* A coordinator assigns and manages tasks
-* A message bus handles communication
-* Shared memory stores global state
-* Tasks are dynamic and can be split, reassigned, or escalated
+```bash
+pip install synapse-agents
+```
 
----
+Or run from source:
 
-## Architecture
-
-### Core Components
-
-* **Agent** — LLM-powered worker that executes tasks
-* **AgentProfile** — defines model, strengths, and capabilities
-* **Coordinator** — assigns tasks and manages execution flow
-* **Task** — unit of work with lifecycle and ownership
-* **Goal** — high-level objective for the system
-* **Message Bus** — async communication layer between agents
-* **SharedMemory** — global state store for coordination
-* **Runtime** — system entry point and execution engine
+```bash
+git clone https://github.com/maxhersc/synapse.git
+cd synapse
+PYTHONPATH=. python3 examples/basic_team.py
+```
 
 ---
 
-## Execution Model
-
-1. Developer defines a **Goal** and a **Team of Agents**
-2. Coordinator breaks goal into **Tasks**
-3. Tasks are assigned based on **AgentProfile capabilities**
-4. Agents execute tasks and emit results
-5. Tasks may spawn sub-tasks or request help
-6. System continues until goal completion criteria are met
-
----
-
-## Key Design Principles
-
-* Framework-agnostic core (pure Python)
-* Minimal external dependencies
-* Event-driven coordination
-* Agents can request help dynamically
-* Shared memory is explicit, not hidden in prompts
-* Observability is built-in from the ground up
-
----
-
-## Developer API (Conceptual)
+## Quickstart
 
 ```python
-team = Team(
-    agents=[
-        ResearchAgent(),
-        CodingAgent(),
-        WriterAgent(),
-    ]
-)
+from synapse import Runtime, Goal, SynapseAgent, AgentProfile
+import asyncio
 
-team.run(
-    goal="Build a REST API with documentation"
-)
+class ResearcherAgent(SynapseAgent):
+    profile = AgentProfile(
+        name="Researcher",
+        model="claude-sonnet-4-20250514",
+        strengths=["research", "summarization"],
+        capabilities=["web_search"],
+    )
+
+    async def handle_task(self, task):
+        # Replace with a real LLM call
+        return "Amadeus, Skyscanner, and Booking.com are the top travel APIs."
+
+class WriterAgent(SynapseAgent):
+    profile = AgentProfile(
+        name="Writer",
+        model="claude-sonnet-4-20250514",
+        strengths=["writing", "summarization"],
+        capabilities=["document_writing"],
+    )
+
+    async def handle_task(self, task):
+        return "Summary written based on research findings."
+
+async def main():
+    runtime = Runtime()
+    runtime.add(ResearcherAgent("researcher", ResearcherAgent.profile, runtime.bus, runtime.memory, runtime.coordinator))
+    runtime.add(WriterAgent("writer", WriterAgent.profile, runtime.bus, runtime.memory, runtime.coordinator))
+
+    goal = Goal(description="Research and summarize the top travel APIs")
+    tasks = await runtime.submit_goal(goal)
+
+    done = asyncio.get_event_loop().create_future()
+    asyncio.get_event_loop().call_later(3, done.set_result, None)
+    await runtime.run(until=done)
+
+    print(runtime.progress(goal.id))
+
+asyncio.run(main())
 ```
+
+---
+
+## How It Works
+
+1. Developer defines a **Goal** and a **team of agents**
+2. The **Coordinator** breaks the goal into **Tasks**
+3. Tasks are assigned based on each agent's **strengths and capabilities**
+4. Agents execute tasks and return results
+5. Agents can **request help** if they are stuck
+6. The system runs until all tasks are complete
+
+---
+
+## Core Components
+
+| Component | Responsibility |
+|---|---|
+| `SynapseAgent` | Base class for all agents — subclass and implement `handle_task()` |
+| `AgentProfile` | Declares an agent's model, strengths, and capabilities |
+| `Coordinator` | Assigns tasks, tracks progress, handles help requests |
+| `Bus` | Async message routing between agents |
+| `SharedMemory` | Global key/value store all agents can read and write |
+| `Runtime` | Entry point — owns all components, starts and stops the system |
+| `Goal` | The top-level objective submitted to the team |
+| `Task` | A unit of work with an owner, status, and result |
+
+---
+
+## Design Principles
+
+- **Framework-agnostic** — works with Claude, GPT, local models, or any LLM
+- **Zero required dependencies** — pure Python stdlib core
+- **Agents as team members** — roles, capabilities, and shared context built in
+- **Observable by default** — every message and task state change is logged
+- **Developer-first API** — subclass, implement one method, and go
 
 ---
 
 ## Use Cases
 
-* Multi-step software development
-* Research and synthesis systems
-* Automated content pipelines
-* Complex planning tasks
-* AI-driven workflows requiring collaboration
+- Multi-step software development pipelines
+- Research and synthesis systems
+- Automated content workflows
+- Complex planning and execution tasks
+- Any system where multiple AI agents need to collaborate
 
 ---
 
 ## Project Status
 
-Early-stage architecture design (v0.1 redesign in progress).
-Core abstractions are being finalized before full implementation.
+**v0.1 — Early access.** Core architecture is stable and running. APIs may change before v1.0.
 
 ---
 
-## Vision
+## License
 
-Synapse is the coordination layer for AI systems — enabling agents to operate not as isolated tools, but as structured teams with shared goals, memory, and communication.
+MIT © 2026 Max Herscovitch
