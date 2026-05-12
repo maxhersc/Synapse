@@ -146,17 +146,17 @@ class SynapseAgent(ABC):
             reason=reason,
             capability_needed=capability_needed,
         )
-        await self._coordinator.submit_help_request(help_request)
+        await self._coordinator.handle_help_request(help_request)
 
     async def remember(self, key: str, value: Any) -> None:
         """Store a value in shared memory."""
 
-        await self._memory.remember(key, value)
+        await self._memory.set(key, value)
 
     async def recall(self, key: str, default: Any = None) -> Any:
         """Retrieve a value from shared memory."""
 
-        return await self._memory.recall(key, default)
+        return await self._memory.get(key, default)
 
     @abstractmethod
     async def handle_task(self, task: Task) -> str:
