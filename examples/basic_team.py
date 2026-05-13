@@ -55,7 +55,7 @@ class WriterAgent(SynapseAgent):
         prompt = (
             "You are a writer. Using this research: "
             f"{research} "
-            "Write a short clear summary."
+            "Write a short clear summary that can be handed to a reviewer for final polishing."
         )
         result = await call_ollama(prompt)
         print(f"[writer] Done: {result}")
@@ -71,12 +71,15 @@ class ReviewerAgent(SynapseAgent):
     )
 
     async def handle_task(self, task, context):
+        research = context["results"]["researcher"].output
         draft = context["results"]["writer"].output
         print("\n[reviewer] Reviewing...")
         prompt = (
-            "You are a reviewer. Review this content: "
-            f"{draft} "
-            "Is it accurate and clear? Give brief feedback."
+            "You are a reviewer. Use the original research and the draft summary below to produce "
+            "one final polished response that is accurate, clear, concise, and ready for the user.\n\n"
+            f"Research:\n{research}\n\n"
+            f"Draft:\n{draft}\n\n"
+            "Return the improved final response only."
         )
         result = await call_ollama(prompt)
         print(f"[reviewer] Done: {result}")
@@ -107,8 +110,11 @@ async def main() -> None:
     ]
 
     # Run the DAG and let each agent consume prior outputs through context["results"].
-    await runtime.run_dag(goal, nodes)
+    results = await runtime.run_dag(goal, nodes)
+    final_response = results["reviewer"].output
     print("\n[synapse] Goal complete.")
+    print("\n[synapse] Final combined response:")
+    print(final_response)
 
 
 if __name__ == "__main__":
