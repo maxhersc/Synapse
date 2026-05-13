@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
+import json
 from typing import Any
 
 from synapse.core.bus import Bus
@@ -21,6 +22,7 @@ class Runtime:
         self.coordinator = Coordinator(self.bus, self.memory)
         self.results: dict[str, AgentResult] = {}
         self.executions: dict[str, NodeExecution] = {}
+        self.trace: list[dict[str, Any]] = []
         self._agents: list[Any] = []
         self._pending_tasks: dict[str, Task] = {}
         self._results_lock = asyncio.Lock()
@@ -74,6 +76,7 @@ class Runtime:
         async with self._results_lock:
             self.results.clear()
         self.executions = {node.id: NodeExecution(node_id=node.id) for node in nodes}
+        self.trace = []
 
         await self.start()
         try:
@@ -113,6 +116,11 @@ class Runtime:
         """Return progress information for the given goal."""
 
         return self.coordinator.progress(goal_id)
+
+    def export_trace(self) -> str:
+        """Return the DAG execution trace as JSON for visualization or replay tooling."""
+
+        return json.dumps(self.trace)
 
     @property
     def agents(self) -> list[Any]:
@@ -157,6 +165,13 @@ class Runtime:
             execution.retry_count = attempt
             execution.status = "running"
             task.status = TaskStatus.IN_PROGRESS
+            self._trace_event(
+                "start",
+                node,
+                agent.id,
+                status=execution.status,
+                retry_count=attempt,
+            )
 
             try:
                 context = self._context()
@@ -169,6 +184,13 @@ class Runtime:
                 task.complete(output)
                 execution.end_time = datetime.now(timezone.utc)
                 execution.status = "complete"
+                self._trace_event(
+                    "end",
+                    node,
+                    agent.id,
+                    status=execution.status,
+                    retry_count=attempt,
+                )
                 return await self._store_result(
                     agent.id,
                     output,
@@ -181,8 +203,24 @@ class Runtime:
                 await agent.on_error(error)
                 if attempt < node.retries:
                     execution.status = "retrying"
+                    self._trace_event(
+                        "retry",
+                        node,
+                        agent.id,
+                        status=execution.status,
+                        retry_count=attempt + 1,
+                        error=str(error),
+                    )
                 else:
                     execution.status = "failed"
+                    self._trace_event(
+                        "fail",
+                        node,
+                        agent.id,
+                        status=execution.status,
+                        retry_count=attempt,
+                        error=str(error),
+                    )
 
         if last_error is None:
             last_error = RuntimeError(f"Node '{node.id}' failed without an error.")
@@ -253,6 +291,24 @@ class Runtime:
             goal_id=goal.id,
             assigned_to=agent.id,
         )
+
+    def _trace_event(
+        self,
+        event: str,
+        node: Node,
+        agent_id: str,
+        **extra: Any,
+    ) -> None:
+        """Append a lightweight node execution event to the runtime trace."""
+
+        entry: dict[str, Any] = {
+            "event": event,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "node_id": node.id,
+            "agent_id": agent_id,
+        }
+        entry.update(extra)
+        self.trace.append(entry)
 
     async def _schedule_ready_tasks(self) -> None:
         """Assign all pending tasks whose agent dependencies have completed."""
