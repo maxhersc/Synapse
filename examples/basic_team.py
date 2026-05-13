@@ -5,7 +5,6 @@ from synapse import AgentProfile, Goal, Runtime, SynapseAgent
 
 class ResearcherAgent(SynapseAgent):
     profile = AgentProfile("Researcher", "demo-model", ["research", "web search"], ["web_search"])
-    def __init__(self) -> None: super().__init__("researcher", self.profile, None, None, None)
     async def handle_task(self, task):
         print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.5)
         result = "Top travel APIs include Amadeus, Skyscanner, and Booking.com partner tools."
@@ -14,7 +13,6 @@ class ResearcherAgent(SynapseAgent):
 
 class WriterAgent(SynapseAgent):
     profile = AgentProfile("Writer", "demo-model", ["writing", "summarization"], ["document_writing"])
-    def __init__(self) -> None: super().__init__("writer", self.profile, None, None, None)
     async def handle_task(self, task):
         print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.3)
         result = "Summary: travel API leaders offer flights, hotels, and booking workflows."
@@ -23,7 +21,6 @@ class WriterAgent(SynapseAgent):
 
 class ReviewerAgent(SynapseAgent):
     profile = AgentProfile("Reviewer", "demo-model", ["review", "fact-checking"], ["quality_review"])
-    def __init__(self) -> None: super().__init__("reviewer", self.profile, None, None, None)
     async def handle_task(self, task):
         print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.2)
         print(f"[{self.id}] Completed: Approved."); return "Approved."

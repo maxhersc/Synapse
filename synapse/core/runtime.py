@@ -21,9 +21,7 @@ class Runtime:
     def add(self, agent: Any) -> Runtime:
         """Register an agent with the runtime, bus, and coordinator."""
 
-        agent._bus = self.bus
-        agent._memory = self.memory
-        agent._coordinator = self.coordinator
+        agent._inject(self.bus, self.memory, self.coordinator)
         self._agents.append(agent)
         self.bus.attach(agent)
         self.coordinator.register_agent(agent)

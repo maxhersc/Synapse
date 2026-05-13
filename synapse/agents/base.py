@@ -24,21 +24,29 @@ class SynapseAgent(ABC):
 
     def __init__(
         self,
-        agent_id: str,
-        profile: AgentProfile,
-        bus: Any,
-        memory: Any,
-        coordinator: Any,
+        agent_id: str | None = None,
+        profile: AgentProfile | None = None,
     ) -> None:
-        self.id: str = agent_id
-        self.profile: AgentProfile = profile
-        self._bus: Any = bus
-        self._memory: Any = memory
-        self._coordinator: Any = coordinator
+        resolved_profile = profile if profile is not None else getattr(self.__class__, "profile", None)
+        if resolved_profile is None:
+            raise ValueError("SynapseAgent requires a profile or class-level profile attribute.")
+
+        self.id: str = agent_id if agent_id is not None else self.__class__.__name__.lower()
+        self.profile: AgentProfile = resolved_profile
+        self._bus: Any = None
+        self._memory: Any = None
+        self._coordinator: Any = None
         self._inbox: asyncio.PriorityQueue[Message] = asyncio.PriorityQueue()
         self._running: bool = False
         self._current_task: Task | None = None
         self._runner_task: asyncio.Task[None] | None = None
+
+    def _inject(self, bus: Any, memory: Any, coordinator: Any) -> None:
+        """Inject runtime-managed infrastructure into the agent."""
+
+        self._bus = bus
+        self._memory = memory
+        self._coordinator = coordinator
 
     async def start(self) -> None:
         """Start the agent's background processing loop."""
