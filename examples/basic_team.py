@@ -87,10 +87,17 @@ async def main() -> None:
     # Build a runtime and register a team of local Ollama-backed agents.
     runtime = Runtime().add(ResearcherAgent()).add(WriterAgent()).add(ReviewerAgent())
 
-    # Define the shared goal for the team.
-    goal = Goal(description="Research and summarize the top travel APIs")
     print("[synapse] Starting team...")
-    print(f"[synapse] Goal: {goal.description}")
+    print("[synapse] What do you want the team to work on?")
+    user_input = input("> ").strip()
+
+    if not user_input:
+        print("[synapse] No goal provided. Exiting.")
+        return
+
+    # Define the shared goal for the team.
+    goal = Goal(description=user_input)
+    print(f"\n[synapse] Goal: {goal.description}")
 
     # Build a DAG so research flows into writing, then writing flows into review.
     nodes = [
