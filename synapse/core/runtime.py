@@ -24,7 +24,10 @@ class Runtime:
         self.executions: dict[str, NodeExecution] = {}
         self.trace: list[dict[str, Any]] = []
         self._agents: list[Any] = []
+        self._agent_index: dict[str, Any] = {}
         self._pending_tasks: dict[str, Task] = {}
+        self._context_ref: dict[str, dict[str, AgentResult]] = {"results": self.results}
+        self._trace_enabled: bool = False
         self._results_lock = asyncio.Lock()
         self._schedule_lock = asyncio.Lock()
 
@@ -33,6 +36,7 @@ class Runtime:
 
         agent._inject(self.bus, self.memory, self.coordinator, self)
         self._agents.append(agent)
+        self._agent_index[agent.id] = agent
         self.bus.attach(agent)
         self.coordinator.register_agent(agent)
         return self
@@ -77,39 +81,52 @@ class Runtime:
             self.results.clear()
         self.executions = {node.id: NodeExecution(node_id=node.id) for node in nodes}
         self.trace = []
+        self._trace_enabled = True
+
+        successors: dict[str, list[str]] = {node.id: [] for node in nodes}
+        remaining_dependencies: dict[str, int] = {}
+        for node in nodes:
+            remaining_dependencies[node.id] = len(node.depends_on)
+            for dependency in node.depends_on:
+                successors[dependency].append(node.id)
 
         await self.start()
         try:
             pending = set(node_map)
-            completed: set[str] = set()
+            ready = [
+                node_map[node_id]
+                for node_id, dependency_count in remaining_dependencies.items()
+                if dependency_count == 0
+            ]
 
             while pending:
-                ready = [
-                    node_map[node_id]
-                    for node_id in pending
-                    if all(dependency in completed for dependency in node_map[node_id].depends_on)
-                ]
                 if not ready:
                     raise ValueError("DAG contains unsatisfied dependencies or a cycle.")
 
+                batch = ready
+                ready = []
                 results = await asyncio.gather(
-                    *(self._run_node(goal, node) for node in ready),
+                    *(self._run_node(goal, node) for node in batch),
                     return_exceptions=True,
                 )
 
                 failures = [
                     result for result in results if isinstance(result, Exception)
                 ]
-                for node in ready:
+                for node in batch:
                     pending.discard(node.id)
                     if self.executions[node.id].status == "complete":
-                        completed.add(node.id)
+                        for successor_id in successors[node.id]:
+                            remaining_dependencies[successor_id] -= 1
+                            if remaining_dependencies[successor_id] == 0 and successor_id in pending:
+                                ready.append(node_map[successor_id])
 
                 if failures:
                     raise failures[0]
 
             return dict(self.results)
         finally:
+            self._trace_enabled = False
             await self.stop()
 
     def progress(self, goal_id: str) -> dict[str, int]:
@@ -131,7 +148,7 @@ class Runtime:
     def _context(self) -> dict[str, dict[str, AgentResult]]:
         """Return the execution context passed to agent task handlers."""
 
-        return {"results": self.results}
+        return self._context_ref
 
     async def _store_result(
         self,
@@ -277,10 +294,10 @@ class Runtime:
     def _agent_by_id(self, agent_id: str) -> Any:
         """Return a registered agent by id or raise if it does not exist."""
 
-        for agent in self._agents:
-            if agent.id == agent_id:
-                return agent
-        raise ValueError(f"Node targets missing agent '{agent_id}'.")
+        agent = self._agent_index.get(agent_id)
+        if agent is None:
+            raise ValueError(f"Node targets missing agent '{agent_id}'.")
+        return agent
 
     def _task_for_node(self, goal: Goal, node: Node, agent: Any) -> Task:
         """Build a task object for a DAG node and goal."""
@@ -301,6 +318,8 @@ class Runtime:
     ) -> None:
         """Append a lightweight node execution event to the runtime trace."""
 
+        if not self._trace_enabled:
+            return
         entry: dict[str, Any] = {
             "event": event,
             "timestamp": datetime.now(timezone.utc).isoformat(),

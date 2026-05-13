@@ -1,54 +1,107 @@
 import asyncio
 
-from synapse import AgentProfile, Goal, Runtime, SynapseAgent
+import httpx
+
+from synapse import AgentProfile, Goal, Node, Runtime, SynapseAgent
+
+
+async def call_ollama(prompt: str) -> str:
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                "http://localhost:11434/api/generate",
+                json={
+                    "model": "gemma3:4b",
+                    "prompt": prompt,
+                    "stream": False,
+                },
+            )
+            response.raise_for_status()
+            return response.json()["response"].strip()
+    except httpx.HTTPError as error:
+        return f"Ollama request failed: {error}. Make sure Ollama is running locally on http://localhost:11434."
 
 
 class ResearcherAgent(SynapseAgent):
-    profile = AgentProfile("Researcher", "demo-model", ["research", "web search"], ["web_search"])
+    profile = AgentProfile(
+        name="Researcher",
+        model="gemma3:4b",
+        strengths=["research", "summarization"],
+        capabilities=["local_llm"],
+    )
+
     async def handle_task(self, task):
-        print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.5)
-        result = "Top travel APIs include Amadeus, Skyscanner, and Booking.com partner tools."
-        print(f"[{self.id}] Completed: {result}"); return result
+        print("\n[researcher] Working...")
+        prompt = (
+            f"You are a researcher. {task.description}. "
+            "List the top 3 results concisely."
+        )
+        result = await call_ollama(prompt)
+        print(f"[researcher] Done: {result}")
+        return result
 
 
 class WriterAgent(SynapseAgent):
-    profile = AgentProfile("Writer", "demo-model", ["writing", "summarization"], ["document_writing"])
-    depends_on = ["researcher"]
+    profile = AgentProfile(
+        name="Writer",
+        model="gemma3:4b",
+        strengths=["writing", "formatting"],
+        capabilities=["local_llm"],
+    )
+
     async def handle_task(self, task, context):
-        print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.3)
         research = context["results"]["researcher"].output
-        result = f"Summary: {research}"
-        print(f"[{self.id}] Completed: {result}"); return result
+        print("\n[writer] Received research. Writing...")
+        prompt = (
+            "You are a writer. Using this research: "
+            f"{research} "
+            "Write a short clear summary."
+        )
+        result = await call_ollama(prompt)
+        print(f"[writer] Done: {result}")
+        return result
 
 
 class ReviewerAgent(SynapseAgent):
-    profile = AgentProfile("Reviewer", "demo-model", ["review", "fact-checking"], ["quality_review"])
-    depends_on = ["writer"]
+    profile = AgentProfile(
+        name="Reviewer",
+        model="gemma3:4b",
+        strengths=["review", "fact-checking"],
+        capabilities=["local_llm"],
+    )
+
     async def handle_task(self, task, context):
-        print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.2)
-        writer_output = context["results"]["writer"].output
-        print(f"[{self.id}] Completed: Approved.")
-        return f"Approved. Reviewed: {writer_output}"
+        draft = context["results"]["writer"].output
+        print("\n[reviewer] Reviewing...")
+        prompt = (
+            "You are a reviewer. Review this content: "
+            f"{draft} "
+            "Is it accurate and clear? Give brief feedback."
+        )
+        result = await call_ollama(prompt)
+        print(f"[reviewer] Done: {result}")
+        return result
 
 
 async def main() -> None:
-    # Build the runtime and register three collaborating agents.
+    # Build a runtime and register a team of local Ollama-backed agents.
     runtime = Runtime().add(ResearcherAgent()).add(WriterAgent()).add(ReviewerAgent())
 
-    # Submit a developer goal and inspect the generated assignments.
+    # Define the shared goal for the team.
     goal = Goal(description="Research and summarize the top travel APIs")
-    tasks = await runtime.submit_goal(goal)
-    for task in tasks:
-        print(f"Assigned task -> {task.assigned_to}: {task.description}")
+    print("[synapse] Starting team...")
+    print(f"[synapse] Goal: {goal.description}")
 
-    # Run the system for 3 seconds so the agents can finish their work.
-    loop = asyncio.get_event_loop()
-    done = loop.create_future()
-    loop.call_later(3, done.set_result, None)
-    await runtime.run(until=done)
+    # Build a DAG so research flows into writing, then writing flows into review.
+    nodes = [
+        Node(id="researcher-task", agent="researcher"),
+        Node(id="writer-task", agent="writer", depends_on=["researcher-task"]),
+        Node(id="reviewer-task", agent="reviewer", depends_on=["writer-task"]),
+    ]
 
-    # Print the final goal progress summary.
-    print("Final progress:", runtime.progress(goal.id))
+    # Run the DAG and let each agent consume prior outputs through context["results"].
+    await runtime.run_dag(goal, nodes)
+    print("\n[synapse] Goal complete.")
 
 
 if __name__ == "__main__":
