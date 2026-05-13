@@ -187,26 +187,32 @@ class Coordinator:
 
         prompt = "\n".join(
             [
-                "You are a task coordinator for an AI agent team.",
+                "You are a task coordinator managing a team of AI agents.",
+                "",
+                "Your job is to break the following goal into distinct subtasks — one per agent — where each subtask is a genuinely different piece of work. The output of each agent should feed into the next.",
                 "",
                 f"Goal: {goal.description}",
                 "",
                 "Available agents:",
                 *[
                     (
-                        f"- {agent.id}: strengths={agent.profile.strengths}, "
-                        f"capabilities={agent.profile.capabilities}, "
-                        f"description={agent.profile.description}"
+                        f"- {agent.profile.name} (id: {agent.id}): "
+                        f"{agent.profile.description}. Strengths: {agent.profile.strengths}"
                     )
                     for agent in self._agents.values()
                 ],
                 "",
-                "Assign each agent exactly one specific task based on their strengths and the goal.",
-                "Return ONLY a valid JSON array in this exact format, no explanation:",
+                "Rules:",
+                "- Each agent gets a DIFFERENT piece of the work, not a rephrasing of the same task",
+                "- Tasks should be sequential — later agents build on earlier agents' results",
+                "- Each task description should be specific and actionable, not generic",
+                "- Assign tasks that match each agent's strengths and description",
+                "",
+                "Return ONLY a valid JSON array, no explanation, no markdown:",
                 "[",
-                '  {"agent_id": "researcher", "task": "specific task description for this agent"},',
-                '  {"agent_id": "writer", "task": "specific task description for this agent"},',
-                '  {"agent_id": "reviewer", "task": "specific task description for this agent"}',
+                '  {"agent_id": "researcher", "task": "specific actionable task for this agent"},',
+                '  {"agent_id": "writer", "task": "specific actionable task that builds on researcher output"},',
+                '  {"agent_id": "reviewer", "task": "specific actionable task that reviews writer output"}',
                 "]",
             ]
         )
