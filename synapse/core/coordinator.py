@@ -26,7 +26,7 @@ class Coordinator:
         self._agents.pop(agent_id, None)
 
     async def submit_goal(self, goal: Goal) -> list[Task]:
-        """Store a goal, decompose it into tasks, assign them, and return the created tasks."""
+        """Store a goal, decompose it into tasks, and return the created tasks."""
 
         self._goals[goal.id] = goal
         await self._memory.set(f"goal:{goal.id}", goal)
@@ -35,12 +35,13 @@ class Coordinator:
         tasks = await self._decompose_goal(goal)
         for task in tasks:
             self._tasks[task.id] = task
-            await self.assign_task(task)
+            await self._memory.set(f"task:{task.id}", task)
+            await self._memory.set(f"task:{task.id}:status", task.status.value)
 
         if not tasks:
             await self._memory.set(f"goal:{goal.id}:status", "complete")
         else:
-            await self._memory.set(f"goal:{goal.id}:status", "in_progress")
+            await self._memory.set(f"goal:{goal.id}:status", "pending")
 
         return tasks
 

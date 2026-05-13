@@ -13,17 +13,22 @@ class ResearcherAgent(SynapseAgent):
 
 class WriterAgent(SynapseAgent):
     profile = AgentProfile("Writer", "demo-model", ["writing", "summarization"], ["document_writing"])
-    async def handle_task(self, task):
+    depends_on = ["researcher"]
+    async def handle_task(self, task, context):
         print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.3)
-        result = "Summary: travel API leaders offer flights, hotels, and booking workflows."
+        research = context["results"]["researcher"].output
+        result = f"Summary: {research}"
         print(f"[{self.id}] Completed: {result}"); return result
 
 
 class ReviewerAgent(SynapseAgent):
     profile = AgentProfile("Reviewer", "demo-model", ["review", "fact-checking"], ["quality_review"])
-    async def handle_task(self, task):
+    depends_on = ["writer"]
+    async def handle_task(self, task, context):
         print(f"[{self.id}] Received: {task.description}"); await asyncio.sleep(0.2)
-        print(f"[{self.id}] Completed: Approved."); return "Approved."
+        writer_output = context["results"]["writer"].output
+        print(f"[{self.id}] Completed: Approved.")
+        return f"Approved. Reviewed: {writer_output}"
 
 
 async def main() -> None:

@@ -3,11 +3,13 @@
 from synapse.agents.base import AgentProfile, SynapseAgent
 from synapse.core.runtime import Runtime
 from synapse.protocols.message import Goal, HelpRequest, Message, Priority, Task, TaskStatus
+from synapse.result import AgentResult
 
 __version__ = "0.1.0"
 
 __all__ = [
     "AgentProfile",
+    "AgentResult",
     "Goal",
     "HelpRequest",
     "Message",

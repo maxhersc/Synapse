@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,6 +23,8 @@ class AgentProfile:
 class SynapseAgent(ABC):
     """Base class for Synapse agents that manages lifecycle, messaging, and shared memory access."""
 
+    depends_on: list[str] = []
+
     def __init__(
         self,
         agent_id: str | None = None,
@@ -31,22 +34,28 @@ class SynapseAgent(ABC):
         if resolved_profile is None:
             raise ValueError("SynapseAgent requires a profile or class-level profile attribute.")
 
-        self.id: str = agent_id if agent_id is not None else self.__class__.__name__.lower()
+        default_agent_id = self.__class__.__name__
+        if default_agent_id.endswith("Agent") and len(default_agent_id) > len("Agent"):
+            default_agent_id = default_agent_id[: -len("Agent")]
+
+        self.id: str = agent_id if agent_id is not None else default_agent_id.lower()
         self.profile: AgentProfile = resolved_profile
         self._bus: Any = None
         self._memory: Any = None
         self._coordinator: Any = None
+        self._runtime: Any = None
         self._inbox: asyncio.PriorityQueue[Message] = asyncio.PriorityQueue()
         self._running: bool = False
         self._current_task: Task | None = None
         self._runner_task: asyncio.Task[None] | None = None
 
-    def _inject(self, bus: Any, memory: Any, coordinator: Any) -> None:
+    def _inject(self, bus: Any, memory: Any, coordinator: Any, runtime: Any = None) -> None:
         """Inject runtime-managed infrastructure into the agent."""
 
         self._bus = bus
         self._memory = memory
         self._coordinator = coordinator
+        self._runtime = runtime
 
     async def start(self) -> None:
         """Start the agent's background processing loop."""
@@ -99,7 +108,14 @@ class SynapseAgent(ABC):
                         if task is not None:
                             self._current_task = task
                             task.status = TaskStatus.IN_PROGRESS
-                            result = await self.handle_task(task)
+                            context = self._runtime._context() if self._runtime is not None else {"results": {}}
+                            result = await self._invoke_handle_task(task, context)
+                            if self._runtime is not None:
+                                await self._runtime._store_result(
+                                    self.id,
+                                    result,
+                                    {"task_id": task.id, "goal_id": task.goal_id},
+                                )
                             task.complete(result)
                             self._current_task = None
                         else:
@@ -165,6 +181,16 @@ class SynapseAgent(ABC):
         """Retrieve a value from shared memory."""
 
         return await self._memory.get(key, default)
+
+    async def _invoke_handle_task(self, task: Task, context: dict[str, Any]) -> Any:
+        """Invoke the task handler with context when the handler accepts it."""
+
+        parameters = inspect.signature(self.handle_task).parameters
+        if "context" in parameters:
+            return await self.handle_task(task, context=context)
+        if len(parameters) >= 2:
+            return await self.handle_task(task, context)
+        return await self.handle_task(task)
 
     @abstractmethod
     async def handle_task(self, task: Task) -> str:
