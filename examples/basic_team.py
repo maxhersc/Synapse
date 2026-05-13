@@ -11,7 +11,7 @@ async def call_ollama(prompt: str) -> str:
             response = await client.post(
                 "http://localhost:11434/api/generate",
                 json={
-                    "model": "gemma3:4b",
+                    "model": "gemma3:1b",
                     "prompt": prompt,
                     "stream": False,
                 },
@@ -25,7 +25,7 @@ async def call_ollama(prompt: str) -> str:
 class ResearcherAgent(SynapseAgent):
     profile = AgentProfile(
         name="Researcher",
-        model="gemma3:4b",
+        model="gemma3:1b",
         strengths=["research", "summarization"],
         capabilities=["local_llm"],
     )
@@ -44,7 +44,7 @@ class ResearcherAgent(SynapseAgent):
 class WriterAgent(SynapseAgent):
     profile = AgentProfile(
         name="Writer",
-        model="gemma3:4b",
+        model="gemma3:1b",
         strengths=["writing", "formatting"],
         capabilities=["local_llm"],
     )
@@ -65,7 +65,7 @@ class WriterAgent(SynapseAgent):
 class ReviewerAgent(SynapseAgent):
     profile = AgentProfile(
         name="Reviewer",
-        model="gemma3:4b",
+        model="gemma3:1",
         strengths=["review", "fact-checking"],
         capabilities=["local_llm"],
     )
