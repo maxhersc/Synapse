@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from synapse.protocols.message import Goal, HelpRequest, Message, Task, TaskStatus
+
+
+async def _call_ollama(prompt: str, model: str = "gemma3:1b") -> str:
+    import httpx
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+            },
+        )
+        return response.json()["response"]
 
 
 class Coordinator:
@@ -50,7 +66,7 @@ class Coordinator:
 
         agent_id = task.assigned_to
         if agent_id is None:
-            agent_id = await self._best_agent_for(task)
+            agent_id = self._keyword_match_agent(task)
             task.assigned_to = agent_id
         if agent_id is None:
             await self._memory.set(f"task:{task.id}:status", task.status.value)
@@ -87,7 +103,7 @@ class Coordinator:
                     break
 
         if target_agent_id is None:
-            target_agent_id = await self._best_agent_for(task)
+            target_agent_id = self._keyword_match_agent(task)
 
         if target_agent_id is None:
             return
@@ -166,6 +182,74 @@ class Coordinator:
     async def _decompose_goal(self, goal: Goal) -> list[Task]:
         """Create one simple task per registered agent based on the goal and agent strengths."""
 
+        if not self._agents:
+            return []
+
+        prompt = "\n".join(
+            [
+                "You are a task coordinator for an AI agent team.",
+                "",
+                f"Goal: {goal.description}",
+                "",
+                "Available agents:",
+                *[
+                    (
+                        f"- {agent.id}: strengths={agent.profile.strengths}, "
+                        f"capabilities={agent.profile.capabilities}, "
+                        f"description={agent.profile.description}"
+                    )
+                    for agent in self._agents.values()
+                ],
+                "",
+                "Assign each agent exactly one specific task based on their strengths and the goal.",
+                "Return ONLY a valid JSON array in this exact format, no explanation:",
+                "[",
+                '  {"agent_id": "researcher", "task": "specific task description for this agent"},',
+                '  {"agent_id": "writer", "task": "specific task description for this agent"},',
+                '  {"agent_id": "reviewer", "task": "specific task description for this agent"}',
+                "]",
+            ]
+        )
+
+        try:
+            response = await _call_ollama(prompt)
+            assignments = json.loads(response)
+            if not isinstance(assignments, list):
+                raise ValueError("Expected a JSON list of assignments.")
+
+            tasks: list[Task] = []
+            seen_agents: set[str] = set()
+            for assignment in assignments:
+                if not isinstance(assignment, dict):
+                    raise ValueError("Each assignment must be an object.")
+                agent_id = assignment.get("agent_id")
+                description = assignment.get("task")
+                if not isinstance(agent_id, str) or not isinstance(description, str):
+                    raise ValueError("Each assignment must include string agent_id and task fields.")
+                if agent_id not in self._agents:
+                    raise ValueError(f"Unknown agent_id '{agent_id}' returned by coordinator.")
+                seen_agents.add(agent_id)
+                tasks.append(
+                    Task(
+                        description=description,
+                        goal_id=goal.id,
+                        assigned_to=agent_id,
+                    )
+                )
+
+            if seen_agents != set(self._agents):
+                raise ValueError("Coordinator did not assign exactly one task per registered agent.")
+
+            return tasks
+        except (json.JSONDecodeError, ValueError):
+            print("[coordinator] LLM response parsing failed, falling back to keyword matching.")
+            return self._fallback_tasks(goal)
+        except Exception:
+            return self._fallback_tasks(goal)
+
+    def _fallback_tasks(self, goal: Goal) -> list[Task]:
+        """Create one simple task per registered agent using local keyword matching."""
+
         tasks: list[Task] = []
         for agent in self._agents.values():
             strength = agent.profile.strengths[0] if agent.profile.strengths else agent.profile.name
@@ -177,7 +261,7 @@ class Coordinator:
             tasks.append(task)
         return tasks
 
-    async def _best_agent_for(self, task: Task) -> str | None:
+    def _keyword_match_agent(self, task: Task) -> str | None:
         """Return the registered agent whose strengths best match the task description."""
 
         if not self._agents:
