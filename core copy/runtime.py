@@ -41,10 +41,10 @@ class Runtime:
     #  Goal submission
     # ──────────────────────────────────────────────
 
-    async def submit_goal(self, description: str) -> str:
+    async def submit_goal(self, description: str, conversation_context: str = "") -> str:
         """Submit a high-level goal and wait for the result."""
         goal = Goal(description=description)
-        result = await self.coordinator.execute(goal)
+        result = await self.coordinator.execute(goal, conversation_context)
         return result
 
     # ──────────────────────────────────────────────

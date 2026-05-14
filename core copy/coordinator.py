@@ -48,7 +48,7 @@ class Coordinator:
     #  Task breakdown
     # ──────────────────────────────────────────────
 
-    async def plan(self, goal: Goal) -> list[Task]:
+    async def plan(self, goal: Goal, conversation_context: str = "") -> list[Task]:
         """Use the LLM to decompose a goal into sequential subtasks."""
         available = self.bus.agents
         agent_list = "\n".join(
@@ -57,10 +57,15 @@ class Coordinator:
             if name != "planner"  # planner is the user-facing agent
         )
 
+        context_block = ""
+        if conversation_context:
+            context_block = f"\nContext from conversation with user:\n{conversation_context}\n"
+
         prompt = (
             f"You are a task coordinator. Break the following goal into 2-4 sequential subtasks.\n"
             f"Each subtask should be assigned to one of the available agents.\n\n"
-            f"Available agents:\n{agent_list}\n\n"
+            f"Available agents:\n{agent_list}\n"
+            f"{context_block}\n"
             f"Goal: {goal.description}\n\n"
             f"Reply with ONLY a numbered list in this exact format (no other text):\n"
             f"1. [agent_name] | [task description]\n"
@@ -133,7 +138,7 @@ class Coordinator:
     #  Execution
     # ──────────────────────────────────────────────
 
-    async def execute(self, goal: Goal) -> str:
+    async def execute(self, goal: Goal, conversation_context: str = "") -> str:
         """Plan, execute subtasks sequentially, and return clean output."""
 
         # Announce
@@ -146,8 +151,8 @@ class Coordinator:
             )
         )
 
-        # Step 1 — Plan
-        tasks = await self.plan(goal)
+        # Step 1 — Plan (with conversation context for better subtask descriptions)
+        tasks = await self.plan(goal, conversation_context)
         goal.tasks = tasks
 
         await self.bus.dispatch(
@@ -168,6 +173,10 @@ class Coordinator:
 
             # Every agent gets the original user goal so they stay on topic
             task.context["goal"] = goal.description
+
+            # Every agent gets the conversation context so they know the user's background
+            if conversation_context:
+                task.context["conversation"] = conversation_context
 
             # Give the task agent all previous results as context
             if accumulated_context:
