@@ -79,6 +79,35 @@ async def call_ollama_json(prompt: str) -> dict:
         return parse_json_response(retry_response)
 
 
+# === Helper functions for state management ===
+def build_state_from_results(results: dict) -> dict:
+    state = {
+        "items": [],
+        "notes": [],
+    }
+
+    item_index = {}
+
+    for result in results.values():
+        output = result.output if hasattr(result, "output") else result
+
+        for item in output.get("add", []):
+            item_index[item["id"]] = item
+
+        for item in output.get("modify", []):
+            item_id = item.get("id")
+            if item_id in item_index:
+                item_index[item_id].update(item)
+
+        for item_id in output.get("remove", []):
+            item_index.pop(item_id, None)
+
+        state["notes"].extend(output.get("notes", []))
+
+    state["items"] = list(item_index.values())
+    return state
+
+
 def render_final_response(state: dict) -> str:
     items = state.get("items", [])
     notes = state.get("notes", [])
@@ -145,33 +174,36 @@ class ResearcherAgent(SynapseAgent):
 class WriterAgent(SynapseAgent):
     profile = AgentProfile(
         name="Writer",
-        model="gemma3:4b",
+        model="gemma3:1b",
         strengths=["writing", "formatting"],
         capabilities=["local_llm"],
     )
 
     async def handle_task(self, task, context):
-        state = context["state"]
+        state = context.get("results", {})
         print("\n[writer] Received research. Writing...")
         prompt = (
             "You are a writer producing mutation deltas for a multi-agent system.\n"
             f"Goal: {task.description}\n\n"
-            f"Current shared state:\n{json.dumps(state)}\n\n"
+            f"Current inputs (agent results only):\n{json.dumps({k: v.output if hasattr(v, 'output') else v for k, v in state.items()}, indent=2)}\n\n"
             "Do NOT write a final answer. Output only changes relative to the current shared state.\n"
             "Return JSON with this exact shape:\n"
             '{'
             '"add": [], '
             '"remove": [], '
             '"modify": ['
-            '{"id": "string", "focus": "string", "reason": "string", "status": "drafted"}'
+            '{"id": "string", "reason": "string", "status": "drafted"}'
             '], '
             '"notes": ["string"]'
             '}\n'
             "Rules:\n"
             "- Return ONLY mutation deltas, never a full state\n"
-            "- Do not repeat unchanged items\n"
-            "- modify existing items to improve focus and reasons for presentation\n"
-            "- notes must justify why the modifications were necessary\n"
+            "- Do NOT invent apps, features, APIs, UI changes, or product ideas\n"
+            "- ONLY summarize and normalize existing research results; do not assume a shared mutable state\n"
+            "- Do not invent new apps or merge unrelated items\n"
+            "- Do not add new concepts not present in input state or research\n"
+            "- modify must strictly reference existing items only\n"
+            "- notes must explain why wording changes were made\n"
             "\nCRITICAL CONSTRAINT:\n"
             "All items must reference real existing iOS travel apps only. Do NOT invent new apps or abstract features.\n"
             "Allowed entities include PackPoint, TripIt, Google Maps, Airbnb, Hopper, Rome2Rio, Booking.com.\n"
@@ -191,12 +223,12 @@ class ReviewerAgent(SynapseAgent):
     )
 
     async def handle_task(self, task, context):
-        state = context["state"]
+        state = context.get("results", {})
         print("\n[reviewer] Reviewing...")
         prompt = (
             "You are a reviewer producing mutation deltas for a multi-agent system.\n"
             f"Goal: {task.description}\n\n"
-            f"Current shared state:\n{json.dumps(state)}\n\n"
+            f"Current inputs (agent results only):\n{json.dumps({k: v.output if hasattr(v, 'output') else v for k, v in state.items()}, indent=2)}\n\n"
             "Do NOT write a final answer. Output only changes relative to the current shared state.\n"
             "Return JSON with this exact shape:\n"
             '{'
@@ -246,7 +278,8 @@ async def main() -> None:
     ]
 
     # Run the DAG and let each agent consume prior outputs through context["results"].
-    final_state = await runtime.run_dag(goal, nodes)
+    results = await runtime.run_dag(goal, nodes)
+    final_state = build_state_from_results(results)
     final_response = render_final_response(final_state)
     print("\n[synapse] Goal complete.")
     print("\n[synapse] Final combined response:")
