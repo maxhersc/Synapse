@@ -1,0 +1,1 @@
+# Synapse examples package
