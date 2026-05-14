@@ -147,7 +147,7 @@ class PlannerAgent(SynapseAgent):
 class ResearcherAgent(SynapseAgent):
     profile = AgentProfile(
         name="Researcher",
-        model="gemma3:1b",
+        model="gemma3:4b",
         strengths=["research", "analysis", "information gathering"],
         description="Finds specific answers to questions and returns concise bullet points.",
     )
@@ -155,22 +155,19 @@ class ResearcherAgent(SynapseAgent):
     async def handle_task(self, task: Task) -> str:
         goal = task.context.get("goal", task.description)
         conv_context = task.context.get("conversation", "")
-        
-        context_block = f"\nUser Background Context:\n{conv_context}\n" if conv_context else ""
 
         return await self.llm(
-            f"You are a researcher on a team. Your only job is to find specific, "
-            f"direct answers to this question: {goal}\n"
-            f"{context_block}\n"
-            f"Return 3-5 bullet points of concrete findings. "
-            f"Do not write a report. Do not add context. Just the facts."
+            f"You are a researcher. Your ONLY job is to find raw facts.\n"
+            f"Question: {goal}\n"
+            f"Context: {conv_context}\n"
+            f"Return exactly 3-5 bullet points. Facts only. No sentences. No opinions. No summaries."
         )
 
 
 class WriterAgent(SynapseAgent):
     profile = AgentProfile(
         name="Writer",
-        model="gemma3:1b",
+        model="gemma3:4b",
         strengths=["writing", "drafting", "documentation"],
         description="Turns research bullet points into one clean readable paragraph.",
     )
@@ -178,24 +175,20 @@ class WriterAgent(SynapseAgent):
     async def handle_task(self, task: Task) -> str:
         context = task.context.get("previous_results", "")
         goal = task.context.get("goal", task.description)
-        conv_context = task.context.get("conversation", "")
-        
-        context_block = f"\nUser Background Context:\n{conv_context}\n" if conv_context else ""
 
         return await self.llm(
-            f"You are a writer on a team. The user's question was: {goal}\n"
-            f"{context_block}\n"
-            f"The researcher found this:\n{context}\n\n"
-            f"Write one clear paragraph summarizing these findings for the user. "
-            f"4-6 sentences max. Do not add new information. "
-            f"Do not write headers or sections. Just one paragraph."
+            f"You are a writer. You do NOT do research. You only write.\n"
+            f"The researcher already found these facts:\n"
+            f"{context}\n\n"
+            f"Turn these facts into one clear paragraph (4-6 sentences) that answers this question: {goal}\n"
+            f"Do not add any new facts. Do not use bullet points. One paragraph only."
         )
 
 
 class ReviewerAgent(SynapseAgent):
     profile = AgentProfile(
         name="Reviewer",
-        model="gemma3:1b",
+        model="gemma3:4b",
         strengths=["review", "quality assurance", "feedback"],
         description="Checks if the final output answers the original question.",
     )
@@ -203,17 +196,15 @@ class ReviewerAgent(SynapseAgent):
     async def handle_task(self, task: Task) -> str:
         context = task.context.get("previous_results", "")
         goal = task.context.get("goal", task.description)
-        conv_context = task.context.get("conversation", "")
-        
-        context_block = f"\nUser Background Context:\n{conv_context}\n" if conv_context else ""
 
         return await self.llm(
-            f"You are a reviewer on a team. The original question was: {goal}\n"
-            f"{context_block}\n"
-            f"The writer produced this:\n{context}\n\n"
-            f"Does it directly answer the question? Reply with EXACTLY ONE of the following formats and nothing else:\n"
-            f"Approved: [one sentence why]\n"
-            f"Needs revision: [one specific fix]"
+            f"You are a reviewer. You do NOT research or write. You only judge.\n"
+            f"Original question: {goal}\n"
+            f"What the writer produced: {context}\n\n"
+            f"Does this paragraph directly and completely answer the question?\n"
+            f"You must respond with EXACTLY one of these two formats, nothing else:\n"
+            f"Approved: [one sentence explaining why it works]\n"
+            f"Needs revision: [one specific thing that is missing or wrong]"
         )
 
 

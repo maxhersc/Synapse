@@ -165,7 +165,7 @@ class Coordinator:
         )
 
         # Step 2 — Execute each task sequentially, passing context forward
-        accumulated_context: list[str] = []
+        previous_result = ""
         agent_results: dict[str, str] = {}  # agent_name -> raw result
 
         for i, task in enumerate(tasks):
@@ -178,14 +178,14 @@ class Coordinator:
             if conversation_context:
                 task.context["conversation"] = conversation_context
 
-            # Give the task agent all previous results as context
-            if accumulated_context:
-                task.context["previous_results"] = "\n\n".join(accumulated_context)
+            # Give the task agent the previous result as context
+            if previous_result:
+                task.context["previous_results"] = previous_result
 
             agent = self.bus.agents.get(task.assigned_to)
             if not agent:
                 task.fail(f"Agent '{task.assigned_to}' not found")
-                accumulated_context.append(f"[{task.assigned_to}] FAILED: agent not found")
+                previous_result = f"[{task.assigned_to}] FAILED: agent not found"
                 continue
 
             # Announce the handoff
@@ -195,7 +195,7 @@ class Coordinator:
                     Message(
                         sender=prev_agent,
                         recipient=task.assigned_to,
-                        content=f"Here's what I produced:\n\n{accumulated_context[-1]}",
+                        content=f"Here's what I produced:\n\n{previous_result}",
                         metadata={"handoff": True},
                     )
                 )
@@ -203,7 +203,7 @@ class Coordinator:
             try:
                 result = await agent.handle_task(task)
                 task.complete(result)
-                accumulated_context.append(result)
+                previous_result = result
                 agent_results[task.assigned_to] = result
 
                 # Store in shared memory
@@ -211,7 +211,7 @@ class Coordinator:
 
             except Exception as e:
                 task.fail(str(e))
-                accumulated_context.append(f"[{task.assigned_to}] FAILED: {e}")
+                previous_result = f"[{task.assigned_to}] FAILED: {e}"
 
         # Step 3 — Assemble final output (no extra LLM call)
         # Use the writer's paragraph + reviewer's verdict directly
@@ -226,7 +226,7 @@ class Coordinator:
             final = writer_output
         else:
             # Fallback: use whatever we got
-            final = "\n\n".join(accumulated_context) if accumulated_context else "No results produced."
+            final = previous_result if previous_result else "No results produced."
 
         goal.final_result = final
         await self.memory.set(f"goal_{goal.goal_id}_result", final)
