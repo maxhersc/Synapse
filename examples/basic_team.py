@@ -24,7 +24,10 @@ import asyncio
 import sys
 
 from synapse import Runtime, SynapseAgent, AgentProfile
-from protocols.message import Task
+from protocols.message import Task, TaskStatus
+
+INPUT_MODE = False
+
 
 # ═══════════════════════════════════════════════════
 #  ANSI colours for the terminal
@@ -60,7 +63,15 @@ def cprint(label: str, text: str) -> None:
     """Coloured print for agent messages."""
     # Extract just the agent name (before →)
     agent = label.split("→")[0].strip().split()[-1] if "→" in label else label
-    color = COLORS.get(agent.lower(), "")
+    name_lower = agent.lower()
+    
+    if name_lower in COLORS:
+        color = COLORS[name_lower]
+    else:
+        # Generate a stable pseudo-random color for dynamic agents (e.g. 91-96)
+        color_code = 91 + (hash(name_lower) % 6)
+        color = f"\033[{color_code}m"
+        
     prefix = f"{color}{BOLD}[{label}]{RESET}"
     # Indent multi-line output
     lines = text.strip().splitlines()
@@ -139,97 +150,30 @@ class PlannerAgent(SynapseAgent):
             f"You are the Planner. Summarise this result for the user:\n\n{task.description}"
         )
 
-
 # ═══════════════════════════════════════════════════
 #  Specialist Agents
 # ═══════════════════════════════════════════════════
-
-class ResearcherAgent(SynapseAgent):
-    profile = AgentProfile(
-        name="Researcher",
-        model="gemma3:4b",
-        strengths=["research", "analysis", "information gathering"],
-        description="Finds specific answers to questions and returns concise bullet points.",
-    )
-
-    async def handle_task(self, task: Task) -> str:
-        goal = task.context.get("goal", task.description)
-        conv_context = task.context.get("conversation", "")
-
-        return await self.llm(
-            f"You are a researcher. Your ONLY job is to find raw facts.\n"
-            f"Question: {goal}\n"
-            f"Context: {conv_context}\n"
-            f"Return exactly 3-5 bullet points. Facts only. No sentences. No opinions. No summaries."
-        )
-
-
-class WriterAgent(SynapseAgent):
-    profile = AgentProfile(
-        name="Writer",
-        model="gemma3:4b",
-        strengths=["writing", "drafting", "documentation"],
-        description="Turns research bullet points into one clean readable paragraph.",
-    )
-
-    async def handle_task(self, task: Task) -> str:
-        context = task.context.get("previous_results", "")
-        goal = task.context.get("goal", task.description)
-
-        return await self.llm(
-            f"You are a writer. You do NOT do research. You only write.\n"
-            f"The researcher already found these facts:\n"
-            f"{context}\n\n"
-            f"Turn these facts into one clear paragraph (4-6 sentences) that answers this question: {goal}\n"
-            f"Do not add any new facts. Do not use bullet points. One paragraph only."
-        )
-
-
-class ReviewerAgent(SynapseAgent):
-    profile = AgentProfile(
-        name="Reviewer",
-        model="gemma3:4b",
-        strengths=["review", "quality assurance", "feedback"],
-        description="Checks if the final output answers the original question.",
-    )
-
-    async def handle_task(self, task: Task) -> str:
-        context = task.context.get("previous_results", "")
-        goal = task.context.get("goal", task.description)
-
-        return await self.llm(
-            f"You are a reviewer. You do NOT research or write. You only judge.\n"
-            f"Original question: {goal}\n"
-            f"What the writer produced: {context}\n\n"
-            f"Does this paragraph directly and completely answer the question?\n"
-            f"You must respond with EXACTLY one of these two formats, nothing else:\n"
-            f"Approved: [one sentence explaining why it works]\n"
-            f"Needs revision: [one specific thing that is missing or wrong]"
-        )
-
 
 # ═══════════════════════════════════════════════════
 #  Main loop
 # ═══════════════════════════════════════════════════
 
 async def main() -> None:
+    global INPUT_MODE
     print(BANNER)
 
     # Build the team
     runtime = Runtime()
 
     planner = PlannerAgent()
-    researcher = ResearcherAgent()
-    writer = WriterAgent()
-    reviewer = ReviewerAgent()
-
     runtime.add_agent(planner)
-    runtime.add_agent(researcher)
-    runtime.add_agent(writer)
-    runtime.add_agent(reviewer)
 
     # Wire up real-time display
+    output_allowed_event = asyncio.Event()
+    output_allowed_event.set()
+
     async def display(label: str, content: str) -> None:
+        await output_allowed_event.wait()
         cprint(label, content)
 
     runtime.on_message(display)
@@ -242,6 +186,50 @@ async def main() -> None:
 
     # Conversation loop
     while True:
+        # Check active goals first
+        if runtime.active_goals:
+            paused_goal = None
+            for goal in runtime.active_goals:
+                if goal.status == TaskStatus.BLOCKED_PENDING_INPUT:
+                    paused_goal = goal
+                    break
+                    
+            if paused_goal:
+                # USER_INPUT_MODE
+                INPUT_MODE = True
+                output_allowed_event.clear()
+                
+                try:
+                    user_input = await asyncio.get_event_loop().run_in_executor(
+                        None, lambda: input(f"{BOLD}> {RESET}")
+                    )
+                except (EOFError, KeyboardInterrupt):
+                    print(f"\n{DIM}Goodbye!{RESET}")
+                    break
+                finally:
+                    INPUT_MODE = False
+                    output_allowed_event.set()
+                    
+                user_input = user_input.strip()
+                if user_input:
+                    print(f"\n{DIM}[runtime]{RESET}\nResuming all blocked agents...\n")
+                    
+                    existing = paused_goal.context.get("shared_input", "")
+                    paused_goal.context["shared_input"] = f"{existing}\nUser provided: {user_input}".strip()
+                    
+                    paused_goal.status = TaskStatus.RUNNING
+                    for task in paused_goal.tasks:
+                        if task.status == TaskStatus.BLOCKED_PENDING_INPUT:
+                            task.context["resume_event"].set()
+            else:
+                # System is executing, do not show prompt
+                await asyncio.sleep(0.5)
+            continue
+
+        # Top-level conversation (no active goals)
+        INPUT_MODE = True
+        output_allowed_event.clear()
+        
         try:
             user_input = await asyncio.get_event_loop().run_in_executor(
                 None, lambda: input(f"{BOLD}> {RESET}")
@@ -249,7 +237,10 @@ async def main() -> None:
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}Goodbye!{RESET}")
             break
-
+        finally:
+            INPUT_MODE = False
+            output_allowed_event.set()
+            
         user_input = user_input.strip()
         if not user_input:
             continue
@@ -279,19 +270,26 @@ async def main() -> None:
                 # 1. Summarize conversation context
                 conv_context = await planner.summarize_context()
                 
-                # 2. Submit goal with context
-                result = await runtime.submit_goal(task_description, conv_context)
+                # 2. Submit goal as a background task
+                active_goal = await runtime.start_goal(task_description, conv_context)
                 
-                # 3. Print result
-                print(f"\n{'─' * 60}")
-                cprint("planner", f"Done! Here's the final deliverable:\n\n{result}")
-                print(f"{'─' * 60}\n")
-                
-                # 4. Inject result back into conversation history so planner remembers it
-                planner.history.append({
-                    "role": "assistant",
-                    "content": f"[Team output for task '{task_description}']\n{result}"
-                })
+                async def wait_for_goal(goal, desc):
+                    while goal.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+                        await asyncio.sleep(0.5)
+                        
+                    if goal.status == TaskStatus.COMPLETED:
+                        print(f"\n{'─' * 60}")
+                        cprint("planner", f"Done! Here's the final deliverable:\n\n{goal.final_result}")
+                        print(f"{'─' * 60}\n")
+                        planner.history.append({
+                            "role": "assistant",
+                            "content": f"[Team output for task '{desc}']\n{goal.final_result}"
+                        })
+                        
+                    if goal in runtime.active_goals:
+                        runtime.active_goals.remove(goal)
+
+                asyncio.create_task(wait_for_goal(active_goal, task_description))
                 
             except Exception as e:
                 print(f"\n{BOLD}\033[91m[error]{RESET} Task failed: {e}\n")

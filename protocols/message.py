@@ -23,8 +23,8 @@ class Priority(Enum):
 
 class TaskStatus(Enum):
     PENDING = "pending"
-    IN_PROGRESS = "in_progress"
-    BLOCKED = "blocked"
+    RUNNING = "running"
+    BLOCKED_PENDING_INPUT = "blocked_pending_input"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -52,6 +52,14 @@ class Message:
 
 
 @dataclass
+class ScopeContract:
+    allowed_outputs: str = ""
+    forbidden_outputs: str = ""
+    max_responsibility: str = ""
+    output_format: str = ""
+
+
+@dataclass
 class Task:
     """A unit of work assigned to a specific agent."""
 
@@ -62,8 +70,12 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     priority: Priority = Priority.NORMAL
     result: Optional[str] = None
+    partial_output: Optional[str] = None
+    pending_question: Optional[str] = None
+    pause_reason: Optional[str] = None
     depends_on: list[str] = field(default_factory=list)
     context: dict[str, Any] = field(default_factory=dict)
+    contract: Optional[ScopeContract] = None
     timestamp: float = field(default_factory=time.time)
 
     def complete(self, result: str) -> None:
@@ -84,6 +96,8 @@ class Goal:
     tasks: list[Task] = field(default_factory=list)
     status: TaskStatus = TaskStatus.PENDING
     final_result: Optional[str] = None
+    schema: list[str] = field(default_factory=list)
+    context: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
 
 

@@ -25,7 +25,7 @@ class Runtime:
         self.memory = SharedMemory()
         self.coordinator = Coordinator(self.bus, self.memory)
         self._agents: list[SynapseAgent] = []
-        self._goal_queue: asyncio.Queue[Goal] = asyncio.Queue()
+        self.active_goals: list[Goal] = []
         self._display: Callable[[str, str], Awaitable[None]] | None = None
 
     # ──────────────────────────────────────────────
@@ -41,11 +41,12 @@ class Runtime:
     #  Goal submission
     # ──────────────────────────────────────────────
 
-    async def submit_goal(self, description: str, conversation_context: str = "") -> str:
-        """Submit a high-level goal and wait for the result."""
+    async def start_goal(self, description: str, conversation_context: str = "") -> Goal:
+        """Start a high-level goal in the background and return it immediately."""
         goal = Goal(description=description)
-        result = await self.coordinator.execute(goal, conversation_context)
-        return result
+        self.active_goals.append(goal)
+        asyncio.create_task(self.coordinator.execute(goal, conversation_context))
+        return goal
 
     # ──────────────────────────────────────────────
     #  Display hook
