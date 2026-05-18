@@ -86,6 +86,76 @@ def cprint(label: str, text: str) -> None:
     print()
 
 
+def render_research_report(research_obj: Research) -> None:
+    """Render a clean, human-readable research report from structured Research object."""
+    try:
+        data = json.loads(research_obj.final_output)
+    except Exception:
+        data = {}
+
+    final_summary = data.get("final_summary", "No sufficient verified evidence available.")
+    key_points = data.get("key_points", [])
+
+    print(f"\n{BOLD}{COLORS['planner']}══════════════════════════════════════════════════════════════════════════════{RESET}")
+    print(f"                         📖 {BOLD}{COLORS['planner']}RESEARCH REPORT{RESET}")
+    print(f"{BOLD}{COLORS['planner']}══════════════════════════════════════════════════════════════════════════════{RESET}\n")
+
+    print(f"❓ {BOLD}QUESTION:{RESET} {BOLD}{research_obj.question}{RESET}\n")
+
+    print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+    print(f"📝 {BOLD}FINAL SUMMARY{RESET}")
+    print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+    print(f"{final_summary}\n")
+
+    if key_points:
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        print(f"💡 {BOLD}KEY FINDINGS{RESET}")
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        for pt in key_points:
+            print(f" • {pt}")
+        print()
+
+    # Render verified claims and supporting evidence
+    verified_claims = []
+    if research_obj.claims:
+        for c in research_obj.claims:
+            status_val = c.status.value if hasattr(c.status, "value") else str(c.status)
+            if "verified" in str(status_val).lower():
+                verified_claims.append(c)
+    
+    if verified_claims:
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        print(f"🛡️ {BOLD}SUPPORTING EVIDENCE (VERIFIED CLAIMS){RESET}")
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        for c in verified_claims:
+            print(f"  ┌─ {BOLD}Claim{RESET} ──────────────────────────────────────────────────────────────────")
+            print(f"  │ {c.claim} (Confidence: {BOLD}{int(c.confidence_score * 100)}%{RESET})")
+            if c.evidence:
+                print(f"  ├─ {BOLD}Evidence{RESET} ───────────────────────────────────────────────────────────────")
+                for ev in c.evidence:
+                    print(f"  │ \"{ev.quote}\"")
+                    print(f"  │ Source: {DIM}{ev.source}{RESET} ({DIM}{ev.location}{RESET})")
+                    print(f"  │ Confidence: {ev.confidence_score}")
+            print(f"  └──────────────────────────────────────────────────────────────────────────\n")
+
+    if research_obj.sources:
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        print(f"🔗 {BOLD}SOURCES{RESET}")
+        print(f"{DIM}──────────────────────────────────────────────────────────────────────────────{RESET}")
+        for src in set(research_obj.sources):
+            print(f" • \033[4m{src}\033[24m")
+        print()
+
+    print(f"{BOLD}{COLORS['planner']}══════════════════════════════════════════════════════════════════════════════{RESET}\n")
+
+    if DEVELOPER_MODE:
+        print(f"\n{BOLD}══════════════════════════════════════════════════════════════════════════════{RESET}")
+        print(f"🛠️  {BOLD}DEVELOPER/DEBUG MODE: RAW PIPELINE OUTPUT{RESET}")
+        print(f"{BOLD}══════════════════════════════════════════════════════════════════════════════{RESET}\n")
+        print(json.dumps(data, indent=2))
+        print(f"\n{BOLD}══════════════════════════════════════════════════════════════════════════════{RESET}\n")
+
+
 # ═══════════════════════════════════════════════════
 #  Planning Agent — conversational, user-facing
 # ═══════════════════════════════════════════════════
@@ -176,7 +246,32 @@ async def main() -> None:
 
     async def display(label: str, content: str) -> None:
         await output_allowed_event.wait()
-        cprint(label, content)
+        global DEVELOPER_MODE
+        if not DEVELOPER_MODE:
+            content_lower = content.lower()
+            label_lower = label.lower()
+            
+            # Hide raw JSON or list structures
+            if ("{" in content and "}" in content) or ("[" in content and "]" in content):
+                return
+            
+            # Hide developer logs, traces, stage completions
+            if "[system_log]" in content_lower or "stage completed:" in content_lower or "completed:" in content_lower:
+                return
+                
+            # Render readable statuses
+            if "search_agent" in label_lower or "raw source retrieval" in content_lower:
+                print(f"🔍 {BOLD}Searching sources...{RESET}")
+            elif "quote_extractor_agent" in label_lower or "evidence extraction" in content_lower:
+                print(f"📄 {BOLD}Extracting evidence...{RESET}")
+            elif "claim_generation_agent" in label_lower or "claim generation" in content_lower:
+                print(f"⚡ {BOLD}Generating claims...{RESET}")
+            elif "fact_check_agent" in label_lower or "mandatory verification" in content_lower:
+                print(f"🛡️  {BOLD}Verifying claims...{RESET}")
+            elif "synthesis_agent" in label_lower or "final synthesis" in content_lower:
+                print(f"📊 {BOLD}Generating report...{RESET}")
+        else:
+            cprint(label, content)
 
     runtime.on_message(display)
 
@@ -252,11 +347,13 @@ async def main() -> None:
             break
             
         if user_input.lower() == "/settings":
-            print(f"\n{DIM}[settings] Configuration mode not yet implemented.{RESET}\n")
+            print(f"\n{DIM}[settings] Configuration mode (Interactive settings not implemented).{RESET}\n")
             continue
             
         if user_input.lower() == "/debug":
-            print(f"\n{DIM}[debug] Diagnostic mode not yet implemented.{RESET}\n")
+            global DEVELOPER_MODE
+            DEVELOPER_MODE = not DEVELOPER_MODE
+            print(f"\n{BOLD}[debug]{RESET} Collapsible Developer/Debug Mode set to: {BOLD}{DEVELOPER_MODE}{RESET}\n")
             continue
 
         # ─── Implicit Research Trigger ───
@@ -277,9 +374,7 @@ async def main() -> None:
                     await asyncio.sleep(0.5)
                     
                 if research_obj.status == NodeStatus.COMPLETED:
-                    print(f"\n{'─' * 60}")
-                    cprint("system", f"Research Complete:\n\n{research_obj.final_output}")
-                    print(f"{'─' * 60}\n")
+                    render_research_report(research_obj)
                     planner.history.append({
                         "role": "assistant",
                         "content": f"[Research output for '{desc}']\n{research_obj.final_output}"
