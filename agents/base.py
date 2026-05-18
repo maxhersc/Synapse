@@ -15,7 +15,7 @@ import httpx
 from dataclasses import dataclass, field
 from typing import Optional, Any, TYPE_CHECKING
 
-from protocols.message import Message, Task, HelpRequest
+from protocols.message import Message, ResearchOperation, HelpRequest
 
 if TYPE_CHECKING:
     from core.bus import MessageBus
@@ -130,7 +130,7 @@ class SynapseAgent:
     #  Override points
     # ──────────────────────────────────────────────
 
-    async def handle_task(self, task: Task) -> str:
+    async def handle_task(self, task: ResearchOperation) -> str:
         """Override this to define what the agent does with a task."""
         raise NotImplementedError(
             f"{self.profile.name} has no handle_task implementation"

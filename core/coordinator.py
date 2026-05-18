@@ -1,21 +1,24 @@
 """
-Synapse v0.2 — Coordinator.
+Synapse v0.3 — Coordinator.
 
 LLM-powered brain that:
-  1. Takes a Goal (user's high-level intent)
-  2. Uses gemma3:1b to break it into ordered subtasks
-  3. Assigns each subtask to the best-fit agent based on strengths
-  4. Executes subtasks sequentially, passing results downstream
-  5. Synthesises a final answer from all results
+  1. Takes a Research object (user's question)
+  2. Runs a strict 5-stage pipeline:
+     - Search (raw retrieval, valid JSON only)
+     - Evidence Extraction (quote-level grounding)
+     - Claim Generation (based ONLY on VALID_EVIDENCE)
+     - Verification (cross-check claims)
+     - Synthesis (final output)
 """
 
 from __future__ import annotations
 
 import asyncio
 import httpx
+import json
 from typing import TYPE_CHECKING
 
-from protocols.message import Goal, Task, TaskStatus, Message, ScopeContract
+from protocols.message import Research, ResearchOperation, NodeStatus, Message, ScopeContract, Evidence, Claim, ClaimStatus
 from agents.base import SynapseAgent, AgentProfile
 
 if TYPE_CHECKING:
@@ -25,17 +28,22 @@ if TYPE_CHECKING:
 OLLAMA_URL = "http://localhost:11434/api/generate"
 COORDINATOR_MODEL = "gemma3:1b"
 
+class DynamicAgent(SynapseAgent):
+    def __init__(self, role_name: str, description: str):
+        super().__init__()
+        self.profile = AgentProfile(
+            name=role_name,
+            model="gemma3:4b",
+            strengths=["execution"],
+            description=description
+        )
 
 class Coordinator:
-    """Breaks goals into tasks, assigns them, and orchestrates execution."""
+    """Orchestrates the strict evidence-first research pipeline."""
 
     def __init__(self, bus: "MessageBus", memory: "SharedMemory") -> None:
         self.bus = bus
         self.memory = memory
-
-    # ──────────────────────────────────────────────
-    #  LLM call (coordinator uses the lightweight model)
-    # ──────────────────────────────────────────────
 
     async def _llm(self, prompt: str) -> str:
         payload = {"model": COORDINATOR_MODEL, "prompt": prompt, "stream": False}
@@ -44,423 +52,333 @@ class Coordinator:
             resp.raise_for_status()
             return resp.json()["response"]
 
-    # ──────────────────────────────────────────────
-    #  Task breakdown
-    # ──────────────────────────────────────────────
+    def _validate_raw_output(self, parsed: dict) -> None:
+        """
+        HARD INPUT VALIDATION GATE.
+        Rules:
+        - Must be a dictionary.
+        - Must not contain system error strings, stack traces, or raw HTML.
+        """
+        if not isinstance(parsed, dict):
+            raise ValueError("Output is not a valid JSON dictionary.")
 
-    async def plan(self, goal: Goal, conversation_context: str = "") -> list[Task]:
-        """Use the LLM to decompose a goal into non-overlapping subtasks."""
-        context_block = ""
-        if conversation_context:
-            context_block = f"\nContext from conversation with user:\n{conversation_context}\n"
+        str_repr = json.dumps(parsed).lower()
+        forbidden_strings = ["traceback", "exception", "<html", "<doctype", "internal server error"]
+        for bad_str in forbidden_strings:
+            if bad_str in str_repr:
+                raise ValueError(f"Found forbidden failure/error/HTML string in output: {bad_str}")
 
-        prompt = (
-            f"You are a task planner. Break the following goal into 2-4 distinct, parallel subtasks.\n"
-            f"Assign each subtask a CONCRETE, TASK-SPECIFIC agent name (e.g., 'Flight Agent', 'Database Architect', 'UI Designer').\n"
-            f"DO NOT use generic roles like 'Researcher', 'Writer', 'Reviewer', 'Execution Agent', or 'Verification Agent'.\n"
-            f"ALSO, define a REQUIRED INPUT SCHEMA for this entire goal.\n"
-            f"List any data fields that the agents will need to complete their tasks.\n"
-            f"{context_block}\n"
-            f"Goal: {goal.description}\n\n"
-            f"Reply with ONLY this exact format (no other text):\n"
-            f"SCHEMA:\n"
-            f"- [field_name] (required)\n"
-            f"- [field_name] (optional)\n"
-            f"TASKS:\n"
-            f"1. [Specific Agent Name] | [task description]\n"
-            f"   ALLOWED: [only these outputs]\n"
-            f"   FORBIDDEN: [explicit list of forbidden outputs]\n"
-            f"   MAX_RESPONSIBILITY: [what it is allowed to decide]\n"
-            f"   FORMAT: [strict output schema]\n"
-            f"2. [Specific Agent Name] | [task description]\n"
-            f"...\n"
-        )
-
-        raw = await self._llm(prompt)
-        return self._parse_plan(raw, goal)
-
-    def _parse_plan(self, raw: str, goal: Goal) -> list[Task]:
-        """Parse the LLM's output into Task objects and extract schema."""
-        tasks: list[Task] = []
-        mode = "tasks"
-        current_task = None
-
-        for line in raw.strip().splitlines():
-            line = line.strip()
-            if not line:
-                continue
-                
-            if line.startswith("SCHEMA:"):
-                mode = "schema"
-                continue
-            elif line.startswith("TASKS:"):
-                mode = "tasks"
-                continue
-                
-            if mode == "schema" and line.startswith("- "):
-                field_name = line[2:].strip()
-                goal.schema.append(field_name)
-                continue
-                
-            if mode == "tasks":
-                if line.startswith("ALLOWED:"):
-                    if current_task and current_task.contract: current_task.contract.allowed_outputs = line[8:].strip()
-                elif line.startswith("FORBIDDEN:"):
-                    if current_task and current_task.contract: current_task.contract.forbidden_outputs = line[10:].strip()
-                elif line.startswith("MAX_RESPONSIBILITY:"):
-                    if current_task and current_task.contract: current_task.contract.max_responsibility = line[19:].strip()
-                elif line.startswith("FORMAT:"):
-                    if current_task and current_task.contract: current_task.contract.output_format = line[7:].strip()
-                elif "|" in line:
-                    parts = line.split("|", 1)
-                    if len(parts) != 2:
-                        continue
-
-                    agent_name = parts[0].strip()
-                    # Strip leading number and punctuation
-                    while agent_name and not agent_name[0].isalpha():
-                        agent_name = agent_name[1:].strip()
-
-                    description = parts[1].strip()
-
-                    if not agent_name:
-                        agent_name = "Execution Agent"
-
-                    task = Task(
-                        description=description,
-                        assigned_to=agent_name,
-                        created_by="coordinator",
-                        contract=ScopeContract()
-                    )
-                    current_task = task
-                    tasks.append(task)
-
-        # If parsing failed completely, create a single generic task
-        if not tasks:
-            tasks.append(
-                Task(
-                    description=goal.description,
-                    assigned_to="Execution Agent",
-                    created_by="coordinator",
-                )
-            )
-
-        return tasks
-
-    # ──────────────────────────────────────────────
-    #  Execution
-    # ──────────────────────────────────────────────
-
-    async def execute(self, goal: Goal, conversation_context: str = "") -> str:
-        """Plan, execute subtasks independently, and return merged output."""
-
-        # Announce
-        await self.bus.dispatch(
-            Message(
-                sender="coordinator",
-                recipient="planner",
-                content=f"Breaking down task: {goal.description}",
-                metadata={"system": True},
-            )
-        )
-
-        # Step 1 — Plan
-        tasks = await self.plan(goal, conversation_context)
-        goal.tasks = tasks
+    async def _run_agent(self, agent_name: str, desc: str, prompt: str, fallback_data: dict = None) -> dict:
+        if fallback_data is None:
+            fallback_data = {}
+            
+        agent = DynamicAgent(agent_name, desc)
+        self.bus.register(agent)
 
         await self.bus.dispatch(
             Message(
                 sender="coordinator",
-                recipient="planner",
-                content=f"Created {len(tasks)} non-overlapping subtasks. Starting independent execution...",
+                recipient=agent.name,
+                content=f"Starting stage: {desc}",
                 metadata={"system": True},
             )
         )
 
-        # Define DynamicAgent class once
-        class DynamicAgent(SynapseAgent):
-            def __init__(self, role_name: str, description: str):
-                super().__init__()
-                self.profile = AgentProfile(
-                    name=role_name,
-                    model="gemma3:4b",
-                    strengths=["execution"],
-                    description=description
-                )
-
-        # Step 2 — Execute all tasks in parallel
-        agent_results: dict[str, str] = {}
-
-        async def run_task(task: Task) -> tuple[str, str]:
-            task.status = TaskStatus.RUNNING
-            task.context["goal"] = goal.description
-            if conversation_context:
-                task.context["conversation"] = conversation_context
-
-            # Create an event for pausing
-            task.context["resume_event"] = asyncio.Event()
-
-            agent = DynamicAgent(task.assigned_to, f"Task-specific agent: {task.assigned_to}")
-            self.bus.register(agent)
-
-            await self.bus.dispatch(
-                Message(
-                    sender="coordinator",
-                    recipient=agent.name,
-                    content=f"Started parallel execution: {task.description}",
-                    metadata={"system": True},
-                )
-            )
-
+        max_retries = 3
+        for attempt in range(max_retries):
             try:
-                g = task.context.get("goal", task.description)
-                c = task.context.get("conversation", "")
-                
-                while True:
-                    schema_str = "\n- ".join(goal.schema) if goal.schema else "None"
+                result = await agent.llm(prompt)
+                cleaned_result = result.strip()
+                if cleaned_result.startswith("```json"):
+                    cleaned_result = cleaned_result[7:]
+                elif cleaned_result.startswith("```"):
+                    cleaned_result = cleaned_result[3:]
+                if cleaned_result.endswith("```"):
+                    cleaned_result = cleaned_result[:-3]
                     
-                    contract_text = ""
-                    if task.contract:
-                        contract_text = (
-                            f"HARD SCOPE CONTRACT:\n"
-                            f"ALLOWED OUTPUTS: {task.contract.allowed_outputs}\n"
-                            f"FORBIDDEN OUTPUTS: {task.contract.forbidden_outputs}\n"
-                            f"MAX RESPONSIBILITY: {task.contract.max_responsibility}\n"
-                            f"OUTPUT FORMAT: {task.contract.output_format}\n\n"
-                            f"CRITICAL RULE: You must act as a bounded function. Do not act as a full assistant. You MUST NOT exceed your max responsibility or produce forbidden outputs.\n\n"
-                        )
-                        
-                    prompt = (
-                        f"You are the {agent.profile.name}. Your task is: {task.description}\n"
-                        f"Overall goal: {g}\n"
-                        f"Context: {c}\n"
-                        f"Global Input Schema:\n- {schema_str}\n\n"
-                        f"{contract_text}"
-                        f"You MUST output your final result or block request as a strict JSON object (NO markdown formatting, just raw JSON):\n"
-                        f"{{\n"
-                        f"  \"agent\": \"{agent.profile.name}\",\n"
-                        f"  \"type\": \"artifact\",\n"
-                        f"  \"status\": \"complete | blocked | failed\",\n"
-                        f"  \"data\": {{ ... structured data ... }}\n"
-                        f"}}\n\n"
-                        f"If you are missing REQUIRED schema fields, use 'status': 'blocked', and inside 'data' include 'missing_fields': [list of missing field names].\n"
-                        f"If you have enough information, use 'status': 'complete' and put your specific structured artifact in 'data'.\n"
+                parsed = json.loads(cleaned_result.strip())
+                self._validate_raw_output(parsed)
+
+                await self.bus.dispatch(
+                    Message(
+                        sender=agent.name,
+                        recipient="coordinator",
+                        content=f"Stage completed:\n\n{json.dumps(parsed, indent=2)}",
+                        metadata={"system": True},
                     )
-                    result = await agent.llm(prompt)
-                    
-                    try:
-                        import json
-                        cleaned_result = result.strip()
-                        if cleaned_result.startswith("```json"):
-                            cleaned_result = cleaned_result[7:]
-                        elif cleaned_result.startswith("```"):
-                            cleaned_result = cleaned_result[3:]
-                        if cleaned_result.endswith("```"):
-                            cleaned_result = cleaned_result[:-3]
-                            
-                        parsed = json.loads(cleaned_result.strip())
-                        
-                        if not all(k in parsed for k in ["agent", "type", "status", "data"]):
-                            raise ValueError("Missing required JSON fields: agent, type, status, data.")
-                            
-                        status = parsed.get("status")
-                        
-                        if status == "blocked":
-                            missing = parsed.get("data", {}).get("missing_fields", [])
-                            if not missing:
-                                raise ValueError("Blocked status requires 'missing_fields' array inside 'data'.")
-                                
-                            task.status = TaskStatus.BLOCKED_PENDING_INPUT
-                            task.context["missing_fields"] = missing
-                            
-                            task.context["resume_event"].clear()
-                            await task.context["resume_event"].wait()
-                            
-                            task.status = TaskStatus.RUNNING
-                            c += "\n\nShared Input State Updated:\n" + goal.context.get("shared_input", "")
-                            continue
-                            
-                        elif status == "complete":
-                            # Output validation layer
-                            if task.contract:
-                                validation_prompt = (
-                                    f"You are a strict Output Validator.\n"
-                                    f"Analyze this output against the following contract:\n"
-                                    f"ALLOWED: {task.contract.allowed_outputs}\n"
-                                    f"FORBIDDEN: {task.contract.forbidden_outputs}\n"
-                                    f"MAX RESPONSIBILITY: {task.contract.max_responsibility}\n\n"
-                                    f"Output to analyze (JSON data):\n{json.dumps(parsed['data'], indent=2)}\n\n"
-                                    f"Did the output violate the contract (e.g. by producing forbidden content, exceeding responsibility, or hallucinating outside scope)?\n"
-                                    f"Reply 'VALID' if it is strictly within scope.\n"
-                                    f"Reply 'VIOLATION: [reason]' if it breached the contract."
-                                )
-                                validation_result = await self._llm(validation_prompt)
-                                if validation_result.strip().startswith("VIOLATION:"):
-                                    c += f"\n\nSystem Error: Your previous output violated the contract.\nValidator notes: {validation_result.strip()}\nPlease rewrite and STRICTLY obey your FORBIDDEN OUTPUTS and MAX RESPONSIBILITY."
-                                    continue
-                                    
-                            # Persistent execution log
-                            goal.context.setdefault("execution_log", []).append(parsed)
-                            
-                            final_output_str = json.dumps(parsed, indent=2)
-                            task.complete(final_output_str)
-                            await self.memory.set(f"task_{task.task_id}_result", final_output_str)
-                            
-                            await self.bus.dispatch(
-                                Message(
-                                    sender=agent.name,
-                                    recipient="coordinator",
-                                    content=f"Artifact completed:\n\n{final_output_str}",
-                                )
-                            )
-
-                            return (task.assigned_to, final_output_str)
-                            
-                        elif status == "failed":
-                            task.fail("Agent self-reported failure.")
-                            return (task.assigned_to, "FAILED: Agent self-reported failure.")
-                            
-                        else:
-                            raise ValueError(f"Invalid status: {status}")
-                            
-                    except json.JSONDecodeError as e:
-                        c += f"\n\nSystem Error: Output was not valid JSON. You MUST output strict JSON.\nError: {e}\nRewrite your response."
-                        continue
-                    except ValueError as e:
-                        c += f"\n\nSystem Error: JSON violated schema.\nError: {e}\nRewrite your response."
-                        continue
+                )
+                return parsed
             except Exception as e:
-                task.fail(str(e))
-                return (task.assigned_to, f"FAILED: {e}")
-            finally:
-                self.bus.unregister(agent.name)
-
-        async def monitor_merge() -> None:
-            printed_waiting = False
-            while not all(t.status in (TaskStatus.COMPLETED, TaskStatus.FAILED) for t in tasks):
-                # Check if all non-finished tasks are BLOCKED_PENDING_INPUT
-                non_finished = [t for t in tasks if t.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED)]
-                
-                if non_finished and all(t.status == TaskStatus.BLOCKED_PENDING_INPUT for t in non_finished):
-                    if not printed_waiting:
-                        # Aggregate and deduplicate missing fields
-                        missing = set()
-                        for t in non_finished:
-                            missing.update(t.context.get("missing_fields", []))
-                            
-                        missing_str = ", ".join(missing)
-                        
-                        # Generate consolidated question
-                        q_prompt = (
-                            f"You are the Coordinator. The following required fields are missing from the user: {missing_str}\n"
-                            f"Ask ONE consolidated, natural-language question to get this information."
+                if attempt < max_retries - 1:
+                    await self.bus.dispatch(
+                        Message(
+                            sender="coordinator",
+                            recipient="system",
+                            content=f"[SYSTEM_LOG] {agent.name} failed (attempt {attempt + 1}/{max_retries}): {str(e)}. Retrying...",
+                            metadata={"system": True},
                         )
-                        consolidated_q = await self._llm(q_prompt)
-                        
-                        await self.bus.dispatch(
-                            Message(
-                                sender="coordinator", 
-                                recipient="user", 
-                                content=f"{consolidated_q.strip()}"
-                            )
-                        )
-                        goal.status = TaskStatus.BLOCKED_PENDING_INPUT
-                        printed_waiting = True
+                    )
                 else:
-                    goal.status = TaskStatus.RUNNING
-                    printed_waiting = False
-                    
-                await asyncio.sleep(0.5)
+                    await self.bus.dispatch(
+                        Message(
+                            sender="coordinator",
+                            recipient="system",
+                            content=f"[SYSTEM_LOG] {agent.name} permanently failed after {max_retries} attempts: {str(e)}. Returning empty fallback.",
+                            metadata={"system": True},
+                        )
+                    )
+        
+        self.bus.unregister(agent.name)
+        # FAILURE IS NOT DATA. Return structured empty fallback.
+        return fallback_data
 
-        monitor = asyncio.create_task(monitor_merge())
-        results = await asyncio.gather(*(run_task(t) for t in tasks))
-        monitor.cancel()
+    async def _run_search_validation_layer(self, question: str, context: str) -> list[dict]:
+        """Search pipeline with strict validation, retry, and fallback provider."""
+        search_prompt = (
+            f"You are the search_agent. ONLY retrieve raw sources relevant to the question.\n"
+            f"Question: {question}\n"
+            f"Context: {context}\n"
+            f"Output JSON EXACTLY matching this format:\n"
+            f"{{\n"
+            f"  \"results\": [\n"
+            f"    {{\"title\": \"...\", \"url\": \"...\", \"snippet\": \"...\"}}\n"
+            f"  ]\n"
+            f"}}"
+        )
 
-        for name, res in results:
-            agent_results[name] = res
-
-        # Step 3 — Assemble final output
-        import json
-        execution_log = goal.context.get("execution_log", [])
-        valid_artifacts = [item for item in execution_log if item.get("status") == "complete"]
-
-        if not valid_artifacts:
-            merged_data = "No valid completed artifacts available."
-        else:
-            all_outputs = []
-            for artifact in valid_artifacts:
-                agent_name = artifact.get("agent", "Unknown")
-                data_str = json.dumps(artifact.get("data", {}), indent=2)
-                all_outputs.append(f"--- Output from {agent_name} ---\n{data_str}\n")
-
-            merge_prompt = (
-                f"You are the Final Planner. The user's original goal was: {goal.description}\n"
-                f"The execution agents have produced the following distinct outputs:\n\n"
-                f"{''.join(all_outputs)}\n\n"
-                f"Combine these outputs into a single cohesive structured JSON object (or raw structured data).\n"
-                f"CRITICAL RULE: You may ONLY combine the outputs as-is. Do NOT modify the content. Do NOT add new information, commentary, or summaries.\n"
-                f"Do not include the raw individual agent tags in the final output."
+        for provider in ["Primary Search Provider", "Secondary Search Provider"]:
+            search_res = await self._run_agent("search_agent", f"Raw Source Retrieval ({provider})", search_prompt, fallback_data={"results": []})
+            results = search_res.get("results", [])
+            
+            validated_results = []
+            if isinstance(results, list):
+                for r in results:
+                    if isinstance(r, dict):
+                        title = str(r.get("title", "")).strip()
+                        url = str(r.get("url", "")).strip()
+                        snippet = str(r.get("snippet", "")).strip()
+                        
+                        if title and url and snippet:
+                            snippet_lower = snippet.lower()
+                            if "error" not in snippet_lower and "traceback" not in snippet_lower:
+                                validated_results.append({
+                                    "title": title,
+                                    "url": url,
+                                    "snippet": snippet
+                                })
+            
+            if validated_results:
+                return validated_results
+                
+            await self.bus.dispatch(
+                Message(
+                    sender="coordinator",
+                    recipient="system",
+                    content=f"[SYSTEM_LOG] {provider} returned invalid or empty results. Escalating...",
+                    metadata={"system": True},
+                )
             )
+
+        # Final fallback - Empty Result Set
+        return []
+
+    async def execute(self, research: Research, conversation_context: str = "") -> str:
+        research.status = NodeStatus.RUNNING
+
+        await self.bus.dispatch(
+            Message(
+                sender="coordinator",
+                recipient="system",
+                content=f"Starting strict research pipeline for: {research.question}",
+                metadata={"system": True},
+            )
+        )
+
+        ctx = conversation_context
+
+        # STAGE 1: Search (Strict Validation)
+        validated_search_results = await self._run_search_validation_layer(research.question, ctx)
+        research.sources = [r["url"] for r in validated_search_results]
+
+        # STAGE 2: Evidence Extraction (quote-level grounding)
+        valid_evidence = []
+        if validated_search_results:
+            ext_prompt = (
+                f"You are the quote_extractor_agent. ONLY extract verbatim evidence from provided sources.\n"
+                f"Question: {research.question}\n"
+                f"Sources: {json.dumps(validated_search_results)}\n"
+                f"Output JSON EXACTLY matching this format:\n"
+                f"{{\n"
+                f"  \"evidence\": [\n"
+                f"    {{\"quote\": \"verbatim text\", \"source\": \"URL\", \"location\": \"paragraph 1\", \"confidence_score\": 0.9}}\n"
+                f"  ]\n"
+                f"}}"
+            )
+            ext_res = await self._run_agent("quote_extractor_agent", "Evidence Extraction", ext_prompt, fallback_data={"evidence": []})
+            raw_evidence = ext_res.get("evidence", [])
+            
+            # STRICT EVIDENCE ACCEPTANCE RULE
+            if isinstance(raw_evidence, list):
+                for e in raw_evidence:
+                    if not isinstance(e, dict): continue
+                    quote = str(e.get("quote", "")).strip()
+                    source = str(e.get("source", "")).strip()
+                    location = str(e.get("location", "")).strip()
+                    
+                    if quote and location and (source.startswith("http") or source.startswith("www")):
+                        valid_evidence.append(e)
+
+        # STAGE 3: Claim Generation (based ONLY on VALID_EVIDENCE)
+        claims = []
+        if valid_evidence:
+            claim_prompt = (
+                f"You are the claim_generation_agent. ONLY generate claims based STRICTLY on the provided VALID_EVIDENCE.\n"
+                f"Embed the evidence directly inside the claim object.\n"
+                f"Question: {research.question}\n"
+                f"Evidence: {json.dumps(valid_evidence)}\n"
+                f"Output JSON EXACTLY matching this format:\n"
+                f"{{\n"
+                f"  \"claims\": [\n"
+                f"    {{\"claim\": \"...\", \"evidence\": [{{\"quote\": \"...\", \"source\": \"...\", \"location\": \"...\", \"confidence_score\": 0.9}}]}}\n"
+                f"  ]\n"
+                f"}}"
+            )
+            claim_res = await self._run_agent("claim_generation_agent", "Claim Generation", claim_prompt, fallback_data={"claims": []})
+            raw_claims = claim_res.get("claims", [])
+            
+            if isinstance(raw_claims, list):
+                for c in raw_claims:
+                    if not isinstance(c, dict) or not c.get("claim"): continue
+                    
+                    ev_list = []
+                    for e in c.get("evidence", []):
+                        if not isinstance(e, dict): continue
+                        ev_list.append(Evidence(
+                            quote=e.get("quote", ""),
+                            source=e.get("source", ""),
+                            location=e.get("location", ""),
+                            retrieved_by="quote_extractor_agent",
+                            confidence_score=e.get("confidence_score", 0.5)
+                        ))
+                    claims.append(Claim(
+                        claim=c.get("claim", ""),
+                        evidence=ev_list
+                    ))
+
+        # STAGE 4: Verification (MANDATORY)
+        verified_claims_list = []
+        if claims:
+            claims_to_check = []
+            for c in claims:
+                claims_to_check.append({
+                    "claim": c.claim,
+                    "evidence": [{"quote": e.quote, "source": e.source} for e in c.evidence]
+                })
+                
+            verify_prompt = (
+                f"You are the fact_check_agent. ONLY verify claims.\n"
+                f"For each claim, assign a status: 'verified', 'disputed', 'weak', or 'unsupported'.\n"
+                f"If evidence is missing or weak, status must be 'unsupported' or 'weak'.\n"
+                f"Claims: {json.dumps(claims_to_check)}\n"
+                f"Output JSON with a 'verified_claims' array.\n"
+                f"{{\n"
+                f"  \"verified_claims\": [\n"
+                f"    {{\"claim\": \"...\", \"status\": \"verified\", \"supporting_sources\": [], \"contradicting_sources\": [], \"confidence_score\": 0.95}}\n"
+                f"  ]\n"
+                f"}}"
+            )
+            verify_res = await self._run_agent("fact_check_agent", "Mandatory Verification", verify_prompt, fallback_data={"verified_claims": []})
+            verified_data = verify_res.get("verified_claims", [])
+            
+            if isinstance(verified_data, list):
+                for i, c in enumerate(claims):
+                    if not c.evidence:
+                        c.status = ClaimStatus.UNSUPPORTED
+                        c.confidence_score = 0.0
+                        continue
+                        
+                    if i < len(verified_data) and isinstance(verified_data[i], dict):
+                        vd = verified_data[i]
+                        status_str = str(vd.get("status", "unsupported")).lower()
+                        if status_str == "verified": c.status = ClaimStatus.VERIFIED
+                        elif status_str == "disputed": c.status = ClaimStatus.DISPUTED
+                        elif status_str == "weak": c.status = ClaimStatus.WEAK
+                        else: c.status = ClaimStatus.UNSUPPORTED
+                        
+                        c.supporting_sources = vd.get("supporting_sources", [])
+                        c.contradicting_sources = vd.get("contradicting_sources", [])
+                        c.confidence_score = vd.get("confidence_score", 0.0)
+                    else:
+                        c.status = ClaimStatus.UNSUPPORTED
+                        c.confidence_score = 0.0
+                    
+                    if c.status == ClaimStatus.VERIFIED:
+                        verified_claims_list.append(c)
+
+        research.claims = claims
+        
+        # STAGE 5: Synthesis
+        if not verified_claims_list:
+            # If no valid evidence/claims, DO NOT fabricate claims.
+            synth_fallback = {
+                "research_question": research.question,
+                "final_summary": "No sufficient verified evidence available.",
+                "key_points": [],
+                "claims_used": []
+            }
+            final_output_str = json.dumps(synth_fallback, indent=2)
             
             await self.bus.dispatch(
                 Message(
                     sender="coordinator",
-                    recipient="planner",
-                    content="All subtasks completed. Merging outputs...",
+                    recipient="system",
+                    content="No verified claims available. Emitting insufficient evidence response.",
                     metadata={"system": True},
                 )
             )
-            merged_data = await self._llm(merge_prompt)
-
-        # Step 4 — Render Agent
-        await self.bus.dispatch(
-            Message(
-                sender="coordinator",
-                recipient="render_agent",
-                content="Formatting final output for user...",
-                metadata={"system": True},
-            )
-        )
-        
-        render_prompt = (
-            f"You are the Render Agent.\n"
-            f"Your responsibility is to take the following merged structured data and convert it into a highly readable, organized, and beautiful Markdown format for the user.\n"
-            f"CRITICAL RULES:\n"
-            f"- Organize content into clear sections with headers.\n"
-            f"- Ensure clarity and structure.\n"
-            f"- You MUST NOT run new tasks, modify the underlying data's meaning, or add hallucinated information.\n"
-            f"- You MUST NOT ask user questions.\n"
-            f"- You MUST NOT output raw JSON or metadata.\n"
-            f"\n"
-            f"Merged Data from Planner:\n"
-            f"{merged_data}\n\n"
-            f"Output ONLY the final Markdown formatted result."
-        )
-        
-        final_rendered = None
-        render_agent = DynamicAgent("Render Agent", "Formats merged structured data into user-facing output.")
-        self.bus.register(render_agent)
-        
-        try:
-            final_rendered = await render_agent.llm(render_prompt)
-            if not final_rendered or not final_rendered.strip():
-                final_rendered = "RENDER STEP MISSING — CANNOT FINALIZE OUTPUT"
-        except Exception:
-            final_rendered = "RENDER STEP MISSING — CANNOT FINALIZE OUTPUT"
-        finally:
-            self.bus.unregister(render_agent.name)
+        else:
+            synth_input = {
+                "research_question": research.question,
+                "verified_claims": [
+                    {
+                        "claim": c.claim,
+                        "evidence": [{"quote": e.quote, "source": e.source, "location": e.location} for e in c.evidence]
+                    }
+                    for c in verified_claims_list
+                ]
+            }
             
-        await self.bus.dispatch(
-            Message(
-                sender="render_agent",
-                recipient="coordinator",
-                content="Render complete.",
+            synth_prompt = (
+                f"You are the synthesis_agent. ONLY build the final structured output from the provided verified claims.\n"
+                f"You MUST format the output EXACTLY matching this JSON schema:\n"
+                f"{{\n"
+                f"  \"research_question\": \"...\",\n"
+                f"  \"final_summary\": \"...\",\n"
+                f"  \"key_points\": [\"...\"],\n"
+                f"  \"claims_used\": [\"...\"]\n"
+                f"}}\n"
+                f"RULES:\n"
+                f"1. Output ONLY valid JSON. No markdown, no text outside JSON.\n"
+                f"2. Do not include explanations or debug text.\n"
+                f"Input Data: {json.dumps(synth_input)}\n"
             )
-        )
+            synth_fallback = {
+                "research_question": research.question,
+                "final_summary": "No sufficient verified evidence available.",
+                "key_points": [],
+                "claims_used": []
+            }
+            synth_res = await self._run_agent("synthesis_agent", "Final Synthesis", synth_prompt, fallback_data=synth_fallback)
+            
+            # Validate output matches schema loosely
+            if not synth_res or not isinstance(synth_res, dict) or "final_summary" not in synth_res:
+                synth_res = synth_fallback
+                
+            final_output_str = json.dumps(synth_res, indent=2)
 
-        goal.final_result = final_rendered
-        await self.memory.set(f"goal_{goal.goal_id}_result", final_rendered)
+        research.final_output = final_output_str
+        await self.memory.set(f"research_{research.id}_result", final_output_str)
         
-        goal.status = TaskStatus.COMPLETED
+        research.status = NodeStatus.COMPLETED
 
-        return final_rendered
+        return final_output_str

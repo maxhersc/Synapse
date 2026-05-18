@@ -1,8 +1,8 @@
 """
-Synapse v0.2 — Protocol definitions.
+Synapse v0.3 — Protocol definitions.
 
-All message types that flow between agents: Messages, Tasks, Goals,
-HelpRequests, and their associated enums (Priority, TaskStatus).
+All message types that flow between agents: Messages, Research, ResearchOperation,
+HelpRequests, and their associated enums (Priority, NodeStatus).
 """
 
 from __future__ import annotations
@@ -21,12 +21,19 @@ class Priority(Enum):
     CRITICAL = "critical"
 
 
-class TaskStatus(Enum):
+class NodeStatus(Enum):
     PENDING = "pending"
     RUNNING = "running"
     BLOCKED_PENDING_INPUT = "blocked_pending_input"
     COMPLETED = "completed"
     FAILED = "failed"
+
+
+class ClaimStatus(Enum):
+    VERIFIED = "verified"
+    DISPUTED = "disputed"
+    WEAK = "weak"
+    UNSUPPORTED = "unsupported"
 
 
 @dataclass
@@ -52,6 +59,27 @@ class Message:
 
 
 @dataclass
+class Evidence:
+    """Evidence is directly bound to claims, inline."""
+    quote: str
+    source: str
+    location: str
+    retrieved_by: str
+    confidence_score: float
+
+
+@dataclass
+class Claim:
+    """Structured claim backed by inline evidence."""
+    claim: str
+    evidence: list[Evidence] = field(default_factory=list)
+    status: ClaimStatus = ClaimStatus.UNSUPPORTED
+    supporting_sources: list[str] = field(default_factory=list)
+    contradicting_sources: list[str] = field(default_factory=list)
+    confidence_score: float = 0.0
+
+
+@dataclass
 class ScopeContract:
     allowed_outputs: str = ""
     forbidden_outputs: str = ""
@@ -60,14 +88,14 @@ class ScopeContract:
 
 
 @dataclass
-class Task:
-    """A unit of work assigned to a specific agent."""
+class ResearchOperation:
+    """A node in the DAG representing a research operation."""
 
-    task_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    operation_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     description: str = ""
     assigned_to: str = ""
     created_by: str = "coordinator"
-    status: TaskStatus = TaskStatus.PENDING
+    status: NodeStatus = NodeStatus.PENDING
     priority: Priority = Priority.NORMAL
     result: Optional[str] = None
     partial_output: Optional[str] = None
@@ -79,26 +107,30 @@ class Task:
     timestamp: float = field(default_factory=time.time)
 
     def complete(self, result: str) -> None:
-        self.status = TaskStatus.COMPLETED
+        self.status = NodeStatus.COMPLETED
         self.result = result
 
     def fail(self, reason: str) -> None:
-        self.status = TaskStatus.FAILED
+        self.status = NodeStatus.FAILED
         self.result = reason
 
 
 @dataclass
-class Goal:
-    """A high-level objective submitted by the user, broken into tasks."""
+class Research:
+    """Primary abstraction representing a structured research process."""
 
-    goal_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
-    description: str = ""
-    tasks: list[Task] = field(default_factory=list)
-    status: TaskStatus = TaskStatus.PENDING
-    final_result: Optional[str] = None
+    id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    question: str = ""
+    plan: list[ResearchOperation] = field(default_factory=list)
+    claims: list[Claim] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
+    agents: list[str] = field(default_factory=list)
+    contradictions: list[str] = field(default_factory=list)
+    final_output: Optional[str] = None
     schema: list[str] = field(default_factory=list)
     context: dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=time.time)
+    status: NodeStatus = NodeStatus.PENDING
 
 
 @dataclass

@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 from typing import Callable, Awaitable
 
-from protocols.message import Goal, Message
+from protocols.message import Research, Message
 from agents.base import SynapseAgent
 from core.bus import MessageBus
 from core.memory import SharedMemory
@@ -25,7 +25,7 @@ class Runtime:
         self.memory = SharedMemory()
         self.coordinator = Coordinator(self.bus, self.memory)
         self._agents: list[SynapseAgent] = []
-        self.active_goals: list[Goal] = []
+        self.active_research: list[Research] = []
         self._display: Callable[[str, str], Awaitable[None]] | None = None
 
     # ──────────────────────────────────────────────
@@ -41,12 +41,12 @@ class Runtime:
     #  Goal submission
     # ──────────────────────────────────────────────
 
-    async def start_goal(self, description: str, conversation_context: str = "") -> Goal:
-        """Start a high-level goal in the background and return it immediately."""
-        goal = Goal(description=description)
-        self.active_goals.append(goal)
-        asyncio.create_task(self.coordinator.execute(goal, conversation_context))
-        return goal
+    async def start_research(self, question: str, conversation_context: str = "") -> Research:
+        """Start a high-level research process in the background and return it immediately."""
+        research = Research(question=question)
+        self.active_research.append(research)
+        asyncio.create_task(self.coordinator.execute(research, conversation_context))
+        return research
 
     # ──────────────────────────────────────────────
     #  Display hook

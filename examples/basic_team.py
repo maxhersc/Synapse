@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import json
 
 from synapse import Runtime, SynapseAgent, AgentProfile
-from protocols.message import Task, TaskStatus
+from protocols.message import Research, NodeStatus
 
 INPUT_MODE = False
+DEVELOPER_MODE = False
 
 
 # ═══════════════════════════════════════════════════
@@ -53,9 +55,9 @@ BANNER = f"""
  ███████║   ██║   ██║ ╚████║██║  ██║██║     ███████║███████╗
  ╚══════╝   ╚═╝   ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝     ╚══════╝╚══════╝
 {RESET}
-{DIM}  v0.2 — Multi-Agent Collaboration System{RESET}
-{DIM}  Type naturally to chat. Use /task <description> to start a team task.{RESET}
-{DIM}  Type /quit to exit.{RESET}
+{DIM}  v0.3 — Always-On Research Engine{RESET}
+{DIM}  Type any question to automatically start a research pipeline.{RESET}
+{DIM}  Type /quit to exit. Commands: /settings, /debug{RESET}
 """
 
 
@@ -145,9 +147,9 @@ class PlannerAgent(SynapseAgent):
         )
         return (await self.llm(prompt)).strip()
 
-    async def handle_task(self, task: Task) -> str:
+    async def handle_task(self, operation) -> str:
         return await self.llm(
-            f"You are the Planner. Summarise this result for the user:\n\n{task.description}"
+            f"You are the Planner. Summarise this result for the user:\n\n{operation.description}"
         )
 
 # ═══════════════════════════════════════════════════
@@ -181,20 +183,20 @@ async def main() -> None:
     # Start
     await runtime.run()
 
-    print(f"{COLORS['planner']}{BOLD}[planner]{RESET} Hi! I'm your Synapse planning assistant. "
-          f"Tell me about what you're working on, and I'll help you think it through.\n")
+    print(f"{COLORS['planner']}{BOLD}[system]{RESET} Synapse Research Engine initialized.\n"
+          f"Awaiting queries...\n")
 
     # Conversation loop
     while True:
-        # Check active goals first
-        if runtime.active_goals:
-            paused_goal = None
-            for goal in runtime.active_goals:
-                if goal.status == TaskStatus.BLOCKED_PENDING_INPUT:
-                    paused_goal = goal
+        # Check active research first
+        if runtime.active_research:
+            paused_research = None
+            for research in runtime.active_research:
+                if research.status == NodeStatus.BLOCKED_PENDING_INPUT:
+                    paused_research = research
                     break
                     
-            if paused_goal:
+            if paused_research:
                 # USER_INPUT_MODE
                 INPUT_MODE = True
                 output_allowed_event.clear()
@@ -214,13 +216,13 @@ async def main() -> None:
                 if user_input:
                     print(f"\n{DIM}[runtime]{RESET}\nResuming all blocked agents...\n")
                     
-                    existing = paused_goal.context.get("shared_input", "")
-                    paused_goal.context["shared_input"] = f"{existing}\nUser provided: {user_input}".strip()
+                    existing = paused_research.context.get("shared_input", "")
+                    paused_research.context["shared_input"] = f"{existing}\nUser provided: {user_input}".strip()
                     
-                    paused_goal.status = TaskStatus.RUNNING
-                    for task in paused_goal.tasks:
-                        if task.status == TaskStatus.BLOCKED_PENDING_INPUT:
-                            task.context["resume_event"].set()
+                    paused_research.status = NodeStatus.RUNNING
+                    for op in paused_research.plan:
+                        if op.status == NodeStatus.BLOCKED_PENDING_INPUT:
+                            op.context["resume_event"].set()
             else:
                 # System is executing, do not show prompt
                 await asyncio.sleep(0.5)
@@ -248,61 +250,50 @@ async def main() -> None:
         if user_input.lower() in ("/quit", "/exit", "quit", "exit"):
             print(f"\n{DIM}Goodbye!{RESET}")
             break
-
-        # ─── /task trigger ───
-        if user_input.lower().startswith("/task"):
-            task_description = user_input[5:].strip()
-            if not task_description:
-                # Use conversation context to infer the task
-                if planner.history:
-                    context = " ".join(
-                        h["content"] for h in planner.history if h["role"] == "user"
-                    )
-                    task_description = context
-                else:
-                    print(f"{DIM}Usage: /task <description>{RESET}\n")
-                    continue
-
-            print(f"\n{COLORS['coordinator']}{BOLD}[coordinator]{RESET} "
-                  f"Received task. Assembling team...\n")
-
-            try:
-                # 1. Summarize conversation context
-                conv_context = await planner.summarize_context()
-                
-                # 2. Submit goal as a background task
-                active_goal = await runtime.start_goal(task_description, conv_context)
-                
-                async def wait_for_goal(goal, desc):
-                    while goal.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
-                        await asyncio.sleep(0.5)
-                        
-                    if goal.status == TaskStatus.COMPLETED:
-                        print(f"\n{'─' * 60}")
-                        cprint("planner", f"Done! Here's the final deliverable:\n\n{goal.final_result}")
-                        print(f"{'─' * 60}\n")
-                        planner.history.append({
-                            "role": "assistant",
-                            "content": f"[Team output for task '{desc}']\n{goal.final_result}"
-                        })
-                        
-                    if goal in runtime.active_goals:
-                        runtime.active_goals.remove(goal)
-
-                asyncio.create_task(wait_for_goal(active_goal, task_description))
-                
-            except Exception as e:
-                print(f"\n{BOLD}\033[91m[error]{RESET} Task failed: {e}\n")
-
+            
+        if user_input.lower() == "/settings":
+            print(f"\n{DIM}[settings] Configuration mode not yet implemented.{RESET}\n")
+            continue
+            
+        if user_input.lower() == "/debug":
+            print(f"\n{DIM}[debug] Diagnostic mode not yet implemented.{RESET}\n")
             continue
 
-        # ─── Normal conversation ───
+        # ─── Implicit Research Trigger ───
+        research_question = user_input
+
+        print(f"\n{COLORS['coordinator']}{BOLD}[coordinator]{RESET} "
+              f"Received query. Initiating Research Pipeline...\n")
+
         try:
-            response = await planner.chat(user_input)
-            cprint("planner", response)
+            # 1. Summarize conversation context
+            conv_context = await planner.summarize_context()
+            
+            # 2. Submit research as a background process
+            active_research_obj = await runtime.start_research(research_question, conv_context)
+            
+            async def wait_for_research(research_obj, desc):
+                while research_obj.status not in (NodeStatus.COMPLETED, NodeStatus.FAILED):
+                    await asyncio.sleep(0.5)
+                    
+                if research_obj.status == NodeStatus.COMPLETED:
+                    print(f"\n{'─' * 60}")
+                    cprint("system", f"Research Complete:\n\n{research_obj.final_output}")
+                    print(f"{'─' * 60}\n")
+                    planner.history.append({
+                        "role": "assistant",
+                        "content": f"[Research output for '{desc}']\n{research_obj.final_output}"
+                    })
+                elif research_obj.status == NodeStatus.FAILED:
+                    print(f"\n{BOLD}\033[91m[error]{RESET} Research Pipeline failed.\n")
+                    
+                if research_obj in runtime.active_research:
+                    runtime.active_research.remove(research_obj)
+
+            asyncio.create_task(wait_for_research(active_research_obj, research_question))
+            
         except Exception as e:
-            print(f"{BOLD}\033[91m[error]{RESET} Could not reach LLM: {e}")
-            print(f"{DIM}Make sure Ollama is running with gemma3:1b loaded.{RESET}\n")
+            print(f"\n{BOLD}\033[91m[error]{RESET} Research initiation failed: {e}\n")
 
     await runtime.stop()
 
