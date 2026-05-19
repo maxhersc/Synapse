@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>MaxAI Research Swarm</title>
+  <style>
+    :root {
+      --bg-light: #f5f5f7;
+      --bg-dark: #0d0d0f;
+      --header-light: rgba(255, 255, 255, 0.7);
+      --header-dark: rgba(20, 20, 22, 0.7);
+      --bubble-user-light: #007aff;
+      --bubble-ai-light: #ffffff;
+      --bubble-user-dark: #0a84ff;
+      --bubble-ai-dark: #1c1c1e;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-light);
+      transition: 0.3s;
+    }
+
+    body.dark {
+      background: var(--bg-dark);
+      color: #f5f5f7;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 20px;
+      backdrop-filter: blur(20px);
+      background: var(--header-light);
+      flex-shrink: 0;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+      transition: 0.3s;
+      z-index: 100;
+    }
+
+    body.dark header {
+      background: var(--header-dark);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .left-buttons {
+      display: flex;
+      gap: 12px;
+    }
+
+    button {
+      border: none;
+      background: rgba(0, 0, 0, 0.05);
+      font-size: 14px;
+      cursor: pointer;
+      padding: 8px 14px;
+      border-radius: 999px;
+      outline: none;
+      transition: 0.2s;
+    }
+
+    body.dark button {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+    }
+
+    button:hover {
+      opacity: 0.8;
+    }
+
+    #modelToggle {
+      height: 42px;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #themeToggle {
+      background: none;
+    }
+
+    body.dark #themeToggle {
+      color: white;
+    }
+
+    body:not(.dark) #themeToggle {
+      color: black;
+    }
+
+    #chatContainer {
+      overflow-y: auto;
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      padding-bottom: 100px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 18px 24px;
+      border-radius: 20px;
+      line-height: 1.5;
+      font-size: 15px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+    }
+
+    .user {
+      align-self: flex-end;
+      background: var(--bubble-user-light);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .ai {
+      align-self: flex-start;
+      background: var(--bubble-ai-light);
+      border-bottom-left-radius: 4px;
+      border: 1px solid rgba(0, 0, 0, 0.05);
+      color: #1d1d1f;
+    }
+
+    body.dark .user {
+      background: var(--bubble-user-dark);
+    }
+
+    body.dark .ai {
+      background: var(--bubble-ai-dark);
+      color: #f5f5f7;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    /* Research report formatting */
+    .research-report {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      width: 100%;
+    }
+
+    .report-question {
+      margin: 0;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #007aff;
+    }
+
+    body.dark .report-question {
+      color: #0a84ff;
+    }
+
+    .report-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #8e8e93;
+    }
+
+    .report-summary {
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+
+    .report-list {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .report-list li {
+      line-height: 1.45;
+    }
+
+    .evidence-container {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 6px;
+    }
+
+    .evidence-card {
+      background: rgba(0, 0, 0, 0.02);
+      border-left: 4px solid #34c759;
+      padding: 12px 16px;
+      border-radius: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    body.dark .evidence-card {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .evidence-quote {
+      margin: 0;
+      font-style: italic;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+
+    .evidence-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.75rem;
+      color: #8e8e93;
+    }
+
+    .evidence-meta a {
+      color: #007aff;
+      text-decoration: none;
+    }
+
+    body.dark .evidence-meta a {
+      color: #0a84ff;
+    }
+
+    .evidence-meta a:hover {
+      text-decoration: underline;
+    }
+
+    .report-sources {
+      margin: 0;
+      padding-left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .report-sources a {
+      color: #007aff;
+      text-decoration: none;
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+
+    body.dark .report-sources a {
+      color: #0a84ff;
+    }
+
+    .report-sources a:hover {
+      text-decoration: underline;
+    }
+
+    /* Loading/Status step rendering */
+    .status-steps {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color 0.3s;
+    }
+
+    .step.pending {
+      color: #8e8e93;
+    }
+
+    .step.active {
+      color: #007aff;
+      font-weight: bold;
+    }
+
+    body.dark .step.active {
+      color: #0a84ff;
+    }
+
+    .step.completed {
+      color: #34c759;
+    }
+
+    #inputArea {
+      display: flex;
+      justify-content: center;
+      padding: 16px 20px;
+      gap: 12px;
+      background: var(--bg-light);
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+      flex-shrink: 0;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      transition: background 0.3s;
+    }
+
+    body.dark #inputArea {
+      background: var(--bg-dark);
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    #userInput {
+      width: 60%;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+      padding: 0 20px;
+      font-size: 15px;
+      outline: none;
+      background: #ffffff;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    body.dark #userInput {
+      background: #1c1c1e;
+      color: white;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    @media (max-width:600px) {
+      #userInput {
+        width: 70%;
+        height: 36px;
+        font-size: 14px;
+        padding: 0 12px;
+      }
+
+      #modelToggle {
+        height: 36px;
+        padding: 0 12px;
+        font-size: 14px;
+      }
+
+      header {
+        padding: 10px 12px;
+      }
+
+      .left-buttons button {
+        padding: 6px 10px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div class="left-buttons">
+      <button id="newChatBtn">New Research</button>
+      <button id="chatSelectorBtn">History</button>
+    </div>
+    <div><strong>Synapse Research Engine</strong></div>
+    <button id="themeToggle">dark mode</button>
+  </header>
+  <div id="chatContainer"></div>
+  <div id="inputArea">
+    <input type="text" id="userInput" placeholder="Ask a research question..." autofocus />
+    <button id="modelToggle">Fast</button>
+  </div>
+  <script>
+    const chatContainer = document.getElementById("chatContainer");
+    const userInput = document.getElementById("userInput");
+    const themeToggle = document.getElementById("themeToggle");
+
+    // Dark Mode Toggle
+    themeToggle.addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+      themeToggle.textContent = document.body.classList.contains("dark") ? "light mode" : "dark mode";
+    });
+
+    function addMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.classList.add("message", sender);
+      const msgText = document.createElement("span");
+      msgText.textContent = text;
+      msg.appendChild(msgText);
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function renderReport(data) {
+      const msg = document.createElement("div");
+      msg.classList.add("message", "ai");
+
+      // Format HTML dynamically using the defined Contract
+      msg.innerHTML = `
+    <div class="research-report">
+      <h2 class="report-question">❓ ${data.question || 'Research Query'}</h2>
+      
+      <div class="report-section">
+        <div class="section-title">📝 FINAL SUMMARY</div>
+        <div class="report-summary">${data.summary || 'No summary available.'}</div>
+      </div>
+      
+      ${data.key_points && data.key_points.length > 0 ? `
+      <div class="report-section">
+        <div class="section-title">💡 KEY FINDINGS</div>
+        <ul class="report-list">
+          ${data.key_points.map(pt => `<li>${pt}</li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
+      
+      ${data.evidence && data.evidence.length > 0 ? `
+      <div class="report-section">
+        <div class="section-title">🛡️ SUPPORTING EVIDENCE</div>
+        <div class="evidence-container">
+          ${data.evidence.map(ev => `
+            <div class="evidence-card">
+              <p class="evidence-quote">"${ev.quote}"</p>
+              <div class="evidence-meta">
+                <span class="evidence-source">🔗 <a href="${ev.source}" target="_blank">${ev.source}</a></span>
+                <span class="evidence-location">📍 ${ev.location}</span>
+                <span class="evidence-confidence">📈 Confidence: ${Math.round(ev.confidence * 100)}%</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+      ` : ''}
+      
+      ${data.sources && data.sources.length > 0 ? `
+      <div class="report-section">
+        <div class="section-title">🔗 SOURCES</div>
+        <ul class="report-sources">
+          ${data.sources.map(src => `<li><a href="${src}" target="_blank">${src}</a></li>`).join('')}
+        </ul>
+      </div>
+      ` : ''}
+    </div>
+  `;
+
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+
+      addMessage(text, "user");
+      userInput.value = "";
+
+      // Create loading steps message
+      const loadingMsg = document.createElement("div");
+      loadingMsg.classList.add("message", "ai");
+      loadingMsg.innerHTML = `
+    <div class="status-steps">
+      <div id="step-search" class="step pending">🔍 Searching sources...</div>
+      <div id="step-extract" class="step pending">📄 Extracting evidence...</div>
+      <div id="step-verify" class="step pending">🛡️ Verifying claims...</div>
+      <div id="step-report" class="step pending">📊 Generating report...</div>
+    </div>
+  `;
+      chatContainer.appendChild(loadingMsg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      const steps = [
+        { id: "step-search", duration: 2500 },
+        { id: "step-extract", duration: 3500 },
+        { id: "step-verify", duration: 3000 },
+        { id: "step-report", duration: 2000 }
+      ];
+
+      let currentStep = 0;
+      function advanceSteps() {
+        if (currentStep < steps.length) {
+          const stepConfig = steps[currentStep];
+          const el = loadingMsg.querySelector(`#${stepConfig.id}`);
+          if (el) {
+            // Complete previous steps
+            for (let i = 0; i < currentStep; i++) {
+              const prevEl = loadingMsg.querySelector(`#${steps[i].id}`);
+              if (prevEl) {
+                prevEl.className = "step completed";
+              }
+            }
+            el.className = "step active";
+          }
+          currentStep++;
+          setTimeout(advanceSteps, stepConfig.duration);
+        }
+      }
+      advanceSteps();
+
+      try {
+        const response = await fetch("/research", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: text })
+        });
+
+        if (!response.ok) {
+          throw new Error("HTTP error " + response.status);
+        }
+
+        const data = await response.json();
+
+        // Remove loading message
+        loadingMsg.remove();
+
+        // Render the beautiful visual card
+        renderReport(data);
+      } catch (err) {
+        loadingMsg.remove();
+        addMessage("Error connecting to Synapse research server. Ensure server.py is running on port 5001.", "ai");
+      }
+    }
+
+    userInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") sendMessage();
+    });
+  </script>
+</body>
+
+</html>
