@@ -1,114 +1,145 @@
 """
-Synapse v0.3 — Research Swarm Flask Backend Server.
+Minimal Flask server exposing the new workspace-oriented runtime.
 
-Provides a POST /research API endpoint matching the contract expected by the MaxAI UI.
+Endpoints:
+  GET  /health
+  POST /demo/bootstrap
+  GET  /workspaces/<workspace_id>
 """
+
+print("LOADING SERVER FILE:", __file__)
 
 from __future__ import annotations
 
 import asyncio
-import os
-from flask import Flask, request, jsonify
-import json
-import traceback
 
-from synapse import Runtime
-from protocols.message import Research, NodeStatus
+from flask import Flask, jsonify
+
+from synapse import (
+    AgentProfile,
+    ArtifactType,
+    CompanyContext,
+    Permission,
+    Priority,
+    Runtime,
+    SynapseAgent,
+    TaskExecutionResult,
+    TaskStatus,
+    TaskType,
+)
 
 app = Flask(__name__)
 
-@app.route('/')
-def index():
-    try:
-        dir_path = os.path.dirname(os.path.realpath(__file__))
-        with open(os.path.join(dir_path, 'index.html'), 'r') as f:
-            return f.read(), 200, {'Content-Type': 'text/html'}
-    except Exception as e:
-        return f"index.html not found: {str(e)}", 404
+runtime = Runtime()
 
-# Manual CORS setup to avoid external dependencies
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    return response
 
-@app.route('/research', methods=['POST'])
-def handle_research():
-    data = request.get_json() or {}
-    query = data.get("query", "").strip()
-    if not query:
-        return jsonify({"error": "Query is required"}), 400
+class DemoBuilder(SynapseAgent):
+    profile = AgentProfile(
+        name="Builder",
+        role="Product Engineer",
+        department="Engineering",
+        strengths=["implementation"],
+        permissions={Permission.EXECUTE_TASKS, Permission.MANAGE_ARTIFACTS},
+        description="Creates implementation artifacts for demo tasks.",
+    )
 
-    try:
-        # Runs the async synapse pipeline inside synchronous flask request thread
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        response_data = loop.run_until_complete(run_pipeline(query))
-        loop.close()
-        return jsonify(response_data)
-    except Exception as e:
-        traceback.print_exc()
-        return jsonify({"error": str(e)}), 500
+    async def execute_task(self, task, snapshot) -> TaskExecutionResult:
+        return TaskExecutionResult(
+            status=TaskStatus.IN_REVIEW,
+            summary=f"Executed task '{task.title}' in workspace '{snapshot.workspace.name}'.",
+            artifact_drafts=[
+                {
+                    "name": f"{task.title} Output",
+                    "artifact_type": ArtifactType.DOCUMENT,
+                    "content": f"Workspace task result for: {task.description}",
+                }
+            ],
+        )
 
-@app.route('/research', methods=['GET'])
-def handle_research_get():
-    return "Use POST /research", 200
 
-async def run_pipeline(question: str) -> dict:
-    runtime = Runtime()
-    await runtime.run()
-    
-    try:
-        # Starts Synapse Research orchestration
-        research_obj = await runtime.start_research(question, "")
-        
-        # Block until the research status transitions out of RUNNING
-        while research_obj.status not in (NodeStatus.COMPLETED, NodeStatus.FAILED):
-            await asyncio.sleep(0.5)
-            
-        if research_obj.status == NodeStatus.COMPLETED:
-            try:
-                synth_data = json.loads(research_obj.final_output)
-            except Exception:
-                synth_data = {}
-                
-            summary = synth_data.get("final_summary", "No sufficient verified evidence available.")
-            key_points = synth_data.get("key_points", [])
-            
-            # Extract list of evidence objects
-            evidence_list = []
-            if research_obj.claims:
-                for c in research_obj.claims:
-                    status_val = c.status.value if hasattr(c.status, "value") else str(c.status)
-                    if "verified" in str(status_val).lower() and c.evidence:
-                        for ev in c.evidence:
-                            evidence_list.append({
-                                "quote": ev.quote,
-                                "source": ev.source,
-                                "location": ev.location,
-                                "confidence": ev.confidence_score
-                            })
-                            
-            return {
-                "question": question,
-                "summary": summary,
-                "key_points": key_points,
-                "sources": list(set(research_obj.sources or [])),
-                "evidence": evidence_list
-            }
-        else:
-            return {
-                "question": question,
-                "summary": "Research Pipeline failed to resolve the question.",
-                "key_points": [],
-                "sources": [],
-                "evidence": []
-            }
-    finally:
-        await runtime.stop()
+runtime.add_agent(DemoBuilder())
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+@app.route("/")
+def home():
+    return jsonify({
+        "status": "running",
+        "message": "Synapse Workspace Server",
+        "endpoints": ["/health", "/demo/bootstrap", "/workspaces/<workspace_id>", "/research (legacy if present)"]
+    })
+
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/demo/bootstrap", methods=["POST"])
+def bootstrap_demo():
+    async def _bootstrap() -> dict:
+        await runtime.run()
+        organization = await runtime.create_organization(
+            "Demo Company",
+            context=CompanyContext(
+                mission="Run structured organizational workflows with AI workers.",
+                goals=["Create visible AI work execution", "Keep state persistent"],
+                writing_style="Direct",
+                communication_style="Operational",
+            ),
+        )
+        department = await runtime.add_department(
+            organization.organization_id,
+            "Engineering",
+            "Builds workflow capabilities.",
+        )
+        role = await runtime.add_role(
+            organization.organization_id,
+            "Product Engineer",
+            department_id=department.department_id,
+            permissions={Permission.EXECUTE_TASKS, Permission.MANAGE_ARTIFACTS},
+        )
+        worker = await runtime.register_worker(
+            organization.organization_id,
+            "Builder",
+            role.role_id,
+            model="gemma3:1b",
+        )
+        workspace = await runtime.create_workspace(
+            organization.organization_id,
+            "Demo Workspace",
+            "Seed workspace for Synapse's organizational model.",
+        )
+        project = await runtime.create_project(
+            workspace.workspace_id,
+            "Operating System Demo",
+            owner_id=worker.agent_id,
+        )
+        task = await runtime.create_task(
+            workspace.workspace_id,
+            "Establish execution trace",
+            description="Generate the first structured output for the workspace.",
+            task_type=TaskType.IMPLEMENTATION,
+            priority=Priority.HIGH,
+            project_id=project.project_id,
+            assigned_role_id=role.role_id,
+        )
+        await runtime.assign_task(workspace.workspace_id, task.task_id, worker.agent_id, "system")
+        await runtime.execute_task(workspace.workspace_id, task.task_id)
+        snapshot = await runtime.memory.export_workspace(workspace.workspace_id)
+        return snapshot
+
+    return jsonify(run(_bootstrap()))
+
+
+@app.route("/workspaces/<workspace_id>")
+def get_workspace(workspace_id: str):
+    return jsonify(run(runtime.memory.export_workspace(workspace_id)))
+
 
 if __name__ == "__main__":
-    print("Synapse Research Server running on http://localhost:5001")
+    print("Synapse workspace server running on http://localhost:5001")
+    print(app.url_map)
     app.run(host="0.0.0.0", port=5001)

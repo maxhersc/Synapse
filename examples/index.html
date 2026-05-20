@@ -1,535 +1,1185 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>MaxAI Research Swarm</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Synapse Control Room</title>
   <style>
     :root {
-      --bg-light: #f5f5f7;
-      --bg-dark: #0d0d0f;
-      --header-light: rgba(255, 255, 255, 0.7);
-      --header-dark: rgba(20, 20, 22, 0.7);
-      --bubble-user-light: #007aff;
-      --bubble-ai-light: #ffffff;
-      --bubble-user-dark: #0a84ff;
-      --bubble-ai-dark: #1c1c1e;
+      --bg: #efe4d2;
+      --surface: rgba(255, 249, 241, 0.9);
+      --surface-strong: rgba(255, 252, 247, 0.97);
+      --line: rgba(52, 33, 18, 0.12);
+      --ink: #23170f;
+      --muted: #6c5f52;
+      --accent: #b14d2b;
+      --accent-dark: #89371a;
+      --teal: #196b61;
+      --gold: #8f6421;
+      --violet: #5b4da6;
+      --ok: #2d7d32;
+      --warn: #b56b17;
+      --danger: #b23b2d;
+      --radius-xl: 28px;
+      --radius-lg: 22px;
+      --radius-md: 16px;
+      --shadow: 0 22px 60px rgba(84, 52, 20, 0.12);
     }
 
-    html,
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      padding: 0;
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      background: var(--bg-light);
-      transition: 0.3s;
+      min-height: 100vh;
+      color: var(--ink);
+      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      background:
+        radial-gradient(circle at 15% 10%, rgba(177, 77, 43, 0.18), transparent 26%),
+        radial-gradient(circle at 90% 15%, rgba(25, 107, 97, 0.16), transparent 24%),
+        radial-gradient(circle at 85% 85%, rgba(91, 77, 166, 0.14), transparent 24%),
+        linear-gradient(180deg, #f5ebdd 0%, var(--bg) 60%, #dfcfb7 100%);
+      background-attachment: fixed;
     }
 
-    body.dark {
-      background: var(--bg-dark);
-      color: #f5f5f7;
+    .shell {
+      width: min(1480px, calc(100vw - 28px));
+      margin: 18px auto 42px;
+      display: grid;
+      gap: 18px;
     }
 
-    header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 15px 20px;
-      backdrop-filter: blur(20px);
-      background: var(--header-light);
-      flex-shrink: 0;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-      transition: 0.3s;
-      z-index: 100;
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(16px);
     }
 
-    body.dark header {
-      background: var(--header-dark);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    .hero {
+      padding: 28px;
+      border-radius: var(--radius-xl);
+      background:
+        linear-gradient(135deg, rgba(255, 252, 248, 0.98), rgba(245, 235, 221, 0.9)),
+        var(--surface);
     }
 
-    .left-buttons {
-      display: flex;
-      gap: 12px;
-    }
-
-    button {
-      border: none;
-      background: rgba(0, 0, 0, 0.05);
-      font-size: 14px;
-      cursor: pointer;
-      padding: 8px 14px;
-      border-radius: 999px;
-      outline: none;
-      transition: 0.2s;
-    }
-
-    body.dark button {
-      background: rgba(255, 255, 255, 0.1);
-      color: white;
-    }
-
-    button:hover {
-      opacity: 0.8;
-    }
-
-    #modelToggle {
-      height: 42px;
-      border-radius: 999px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    #themeToggle {
-      background: none;
-    }
-
-    body.dark #themeToggle {
-      color: white;
-    }
-
-    body:not(.dark) #themeToggle {
-      color: black;
-    }
-
-    #chatContainer {
-      overflow-y: auto;
-      flex: 1;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      padding-bottom: 100px;
-    }
-
-    .message {
-      max-width: 80%;
-      padding: 18px 24px;
-      border-radius: 20px;
-      line-height: 1.5;
-      font-size: 15px;
-      display: flex;
-      flex-direction: column;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
-    }
-
-    .user {
-      align-self: flex-end;
-      background: var(--bubble-user-light);
-      color: white;
-      border-bottom-right-radius: 4px;
-    }
-
-    .ai {
-      align-self: flex-start;
-      background: var(--bubble-ai-light);
-      border-bottom-left-radius: 4px;
-      border: 1px solid rgba(0, 0, 0, 0.05);
-      color: #1d1d1f;
-    }
-
-    body.dark .user {
-      background: var(--bubble-user-dark);
-    }
-
-    body.dark .ai {
-      background: var(--bubble-ai-dark);
-      color: #f5f5f7;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    /* Research report formatting */
-    .research-report {
-      display: flex;
-      flex-direction: column;
-      gap: 20px;
-      width: 100%;
-    }
-
-    .report-question {
-      margin: 0;
-      font-size: 1.25rem;
-      font-weight: 700;
-      color: #007aff;
-    }
-
-    body.dark .report-question {
-      color: #0a84ff;
-    }
-
-    .report-section {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    .section-title {
-      font-size: 0.8rem;
-      font-weight: 700;
+    .eyebrow {
+      margin: 0 0 12px;
+      font: 700 0.82rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: #8e8e93;
+      color: var(--muted);
     }
 
-    .report-summary {
-      font-size: 0.95rem;
-      line-height: 1.5;
+    h1, h2, h3, p { margin: 0; }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(2.5rem, 7vw, 5.2rem);
+      line-height: 0.9;
+      letter-spacing: -0.05em;
     }
 
-    .report-list {
-      margin: 0;
-      padding-left: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
+    .hero-copy {
+      max-width: 760px;
+      margin-top: 16px;
+      color: var(--muted);
+      font-size: 1.05rem;
+      line-height: 1.65;
     }
 
-    .report-list li {
-      line-height: 1.45;
+    .hero-bottom {
+      margin-top: 24px;
+      display: grid;
+      grid-template-columns: 1.25fr 0.95fr;
+      gap: 16px;
+      align-items: end;
     }
 
-    .evidence-container {
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      margin-top: 6px;
-    }
-
-    .evidence-card {
-      background: rgba(0, 0, 0, 0.02);
-      border-left: 4px solid #34c759;
-      padding: 12px 16px;
-      border-radius: 8px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-    }
-
-    body.dark .evidence-card {
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    .evidence-quote {
-      margin: 0;
-      font-style: italic;
-      font-size: 0.9rem;
-      line-height: 1.4;
-    }
-
-    .evidence-meta {
+    .actions {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      font-size: 0.75rem;
-      color: #8e8e93;
+      align-items: center;
     }
 
-    .evidence-meta a {
-      color: #007aff;
-      text-decoration: none;
+    button,
+    select,
+    textarea,
+    input {
+      font: inherit;
     }
 
-    body.dark .evidence-meta a {
-      color: #0a84ff;
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 20px;
+      cursor: pointer;
+      transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
     }
 
-    .evidence-meta a:hover {
-      text-decoration: underline;
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.6; cursor: wait; transform: none; }
+
+    .primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+      color: #fff7ef;
     }
 
-    .report-sources {
-      margin: 0;
-      padding-left: 20px;
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
+    .secondary {
+      background: rgba(255, 252, 247, 0.8);
+      border: 1px solid var(--line);
+      color: var(--ink);
     }
 
-    .report-sources a {
-      color: #007aff;
-      text-decoration: none;
-      font-size: 0.9rem;
-      word-break: break-all;
+    .statusbox {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid rgba(52, 33, 18, 0.08);
+      background: rgba(255, 252, 247, 0.78);
     }
 
-    body.dark .report-sources a {
-      color: #0a84ff;
-    }
-
-    .report-sources a:hover {
-      text-decoration: underline;
-    }
-
-    /* Loading/Status step rendering */
-    .status-steps {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      font-size: 14px;
-    }
-
-    .step {
+    .statusline {
       display: flex;
       align-items: center;
-      gap: 8px;
-      transition: color 0.3s;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.5;
     }
 
-    .step.pending {
-      color: #8e8e93;
-    }
-
-    .step.active {
-      color: #007aff;
-      font-weight: bold;
-    }
-
-    body.dark .step.active {
-      color: #0a84ff;
-    }
-
-    .step.completed {
-      color: #34c759;
-    }
-
-    #inputArea {
-      display: flex;
-      justify-content: center;
-      padding: 16px 20px;
-      gap: 12px;
-      background: var(--bg-light);
-      border-top: 1px solid rgba(0, 0, 0, 0.05);
-      flex-shrink: 0;
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      z-index: 100;
-      transition: background 0.3s;
-    }
-
-    body.dark #inputArea {
-      background: var(--bg-dark);
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    #userInput {
-      width: 60%;
-      height: 42px;
+    .statusdot {
+      width: 10px;
+      height: 10px;
       border-radius: 999px;
-      border: 1px solid rgba(0, 0, 0, 0.1);
-      padding: 0 20px;
-      font-size: 15px;
-      outline: none;
-      background: #ffffff;
-      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.05);
+      background: var(--warn);
+      box-shadow: 0 0 0 8px rgba(181, 107, 23, 0.12);
     }
 
-    body.dark #userInput {
-      background: #1c1c1e;
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    .statusdot.ready {
+      background: var(--ok);
+      box-shadow: 0 0 0 8px rgba(45, 125, 50, 0.12);
     }
 
-    @media (max-width:600px) {
-      #userInput {
-        width: 70%;
-        height: 36px;
-        font-size: 14px;
-        padding: 0 12px;
-      }
+    .statusdot.error {
+      background: var(--danger);
+      box-shadow: 0 0 0 8px rgba(178, 59, 45, 0.12);
+    }
 
-      #modelToggle {
-        height: 36px;
-        padding: 0 12px;
-        font-size: 14px;
-      }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.3fr 0.92fr;
+      gap: 18px;
+    }
 
-      header {
-        padding: 10px 12px;
-      }
+    .stack {
+      display: grid;
+      gap: 18px;
+    }
 
-      .left-buttons button {
-        padding: 6px 10px;
-        font-size: 13px;
-      }
+    .section {
+      padding: 22px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      letter-spacing: -0.03em;
+    }
+
+    .section-subtitle {
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.55;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .metric, .card, .action-card {
+      padding: 18px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--surface-strong);
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font: 700 0.8rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      margin-top: 18px;
+      font-size: 2.25rem;
+      line-height: 0.9;
+    }
+
+    .metric-note {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.93rem;
+      line-height: 1.45;
+    }
+
+    .boards {
+      display: grid;
+      grid-template-columns: 1.05fr 0.95fr;
+      gap: 16px;
+    }
+
+    .board {
+      display: grid;
+      gap: 12px;
+    }
+
+    .card {
+      cursor: pointer;
+      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+    }
+
+    .card:hover {
+      transform: translateY(-1px);
+      border-color: rgba(52, 33, 18, 0.2);
+      box-shadow: 0 14px 28px rgba(84, 52, 20, 0.08);
+    }
+
+    .card.selected {
+      border-color: rgba(25, 107, 97, 0.42);
+      box-shadow: 0 0 0 3px rgba(25, 107, 97, 0.14);
+    }
+
+    .card-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-size: 1.1rem;
+      line-height: 1.15;
+    }
+
+    .card-copy {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+
+    .meta {
+      margin-top: 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 11px;
+      border-radius: 999px;
+      font: 700 0.75rem/1 "Avenir Next", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      background: rgba(255, 252, 247, 0.76);
+      border: 1px solid rgba(52, 33, 18, 0.08);
+    }
+
+    .pill.teal { color: var(--teal); background: rgba(25, 107, 97, 0.08); }
+    .pill.gold { color: var(--gold); background: rgba(143, 100, 33, 0.08); }
+    .pill.violet { color: var(--violet); background: rgba(91, 77, 166, 0.08); }
+    .pill.ok { color: var(--ok); background: rgba(45, 125, 50, 0.08); }
+    .pill.warn { color: var(--warn); background: rgba(181, 107, 23, 0.08); }
+    .pill.danger { color: var(--danger); background: rgba(178, 59, 45, 0.08); }
+
+    .timeline {
+      position: relative;
+      display: grid;
+      gap: 14px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 13px;
+      top: 8px;
+      bottom: 8px;
+      width: 1px;
+      background: linear-gradient(180deg, rgba(91, 77, 166, 0.35), rgba(91, 77, 166, 0.02));
+    }
+
+    .event {
+      position: relative;
+      padding-left: 36px;
+    }
+
+    .event::before {
+      content: "";
+      position: absolute;
+      left: 7px;
+      top: 8px;
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+      background: var(--violet);
+      box-shadow: 0 0 0 6px rgba(91, 77, 166, 0.12);
+    }
+
+    .event-title {
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .event-copy, .event-meta {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.5;
+    }
+
+    .controls {
+      display: grid;
+      gap: 14px;
+    }
+
+    .action-card h3 {
+      margin-bottom: 12px;
+      font-size: 1.05rem;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .form-grid.single {
+      grid-template-columns: 1fr;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      border: 1px solid rgba(52, 33, 18, 0.12);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(255, 252, 247, 0.92);
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    .inline-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .selected-summary, .empty {
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px dashed rgba(52, 33, 18, 0.16);
+      background: rgba(255, 252, 247, 0.45);
+      color: var(--muted);
+      font-size: 0.94rem;
+      line-height: 1.55;
+    }
+
+    .raw {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: #17120e;
+    }
+
+    .raw::before {
+      content: "workspace snapshot";
+      display: block;
+      padding: 10px 14px;
+      border-bottom: 1px solid rgba(255, 248, 236, 0.08);
+      color: rgba(255, 248, 236, 0.7);
+      font: 700 0.74rem/1 "Avenir Next", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    pre {
+      margin: 0;
+      padding: 18px;
+      max-height: 480px;
+      overflow: auto;
+      color: #f9f0e3;
+      font: 0.82rem/1.55 "SFMono-Regular", Menlo, monospace;
+    }
+
+    @media (max-width: 1180px) {
+      .layout, .hero-bottom, .boards { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+
+    @media (max-width: 860px) {
+      .shell { width: min(100vw - 18px, 100%); margin-top: 10px; }
+      .hero, .section { padding: 18px; }
+      .metrics, .form-grid { grid-template-columns: 1fr; }
+      h1 { font-size: 2.6rem; }
     }
   </style>
 </head>
-
 <body>
-  <header>
-    <div class="left-buttons">
-      <button id="newChatBtn">New Research</button>
-      <button id="chatSelectorBtn">History</button>
-    </div>
-    <div><strong>Synapse Research Engine</strong></div>
-    <button id="themeToggle">dark mode</button>
-  </header>
-  <div id="chatContainer"></div>
-  <div id="inputArea">
-    <input type="text" id="userInput" placeholder="Ask a research question..." autofocus />
-    <button id="modelToggle">Fast</button>
-  </div>
-  <script>
-    const chatContainer = document.getElementById("chatContainer");
-    const userInput = document.getElementById("userInput");
-    const themeToggle = document.getElementById("themeToggle");
-
-    // Dark Mode Toggle
-    themeToggle.addEventListener("click", () => {
-      document.body.classList.toggle("dark");
-      themeToggle.textContent = document.body.classList.contains("dark") ? "light mode" : "dark mode";
-    });
-
-    function addMessage(text, sender) {
-      const msg = document.createElement("div");
-      msg.classList.add("message", sender);
-      const msgText = document.createElement("span");
-      msgText.textContent = text;
-      msg.appendChild(msgText);
-      chatContainer.appendChild(msg);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
-    }
-
-    function renderReport(data) {
-      const msg = document.createElement("div");
-      msg.classList.add("message", "ai");
-
-      // Format HTML dynamically using the defined Contract
-      msg.innerHTML = `
-    <div class="research-report">
-      <h2 class="report-question">❓ ${data.question || 'Research Query'}</h2>
-      
-      <div class="report-section">
-        <div class="section-title">📝 FINAL SUMMARY</div>
-        <div class="report-summary">${data.summary || 'No summary available.'}</div>
-      </div>
-      
-      ${data.key_points && data.key_points.length > 0 ? `
-      <div class="report-section">
-        <div class="section-title">💡 KEY FINDINGS</div>
-        <ul class="report-list">
-          ${data.key_points.map(pt => `<li>${pt}</li>`).join('')}
-        </ul>
-      </div>
-      ` : ''}
-      
-      ${data.evidence && data.evidence.length > 0 ? `
-      <div class="report-section">
-        <div class="section-title">🛡️ SUPPORTING EVIDENCE</div>
-        <div class="evidence-container">
-          ${data.evidence.map(ev => `
-            <div class="evidence-card">
-              <p class="evidence-quote">"${ev.quote}"</p>
-              <div class="evidence-meta">
-                <span class="evidence-source">🔗 <a href="${ev.source}" target="_blank">${ev.source}</a></span>
-                <span class="evidence-location">📍 ${ev.location}</span>
-                <span class="evidence-confidence">📈 Confidence: ${Math.round(ev.confidence * 100)}%</span>
-              </div>
-            </div>
-          `).join('')}
+  <main class="shell">
+    <section class="panel hero">
+      <p class="eyebrow">Synapse Control Room</p>
+      <h1>Operate a digital workforce through structured state.</h1>
+      <p class="hero-copy">
+        This interface is built for the shift from research output to organizational execution.
+        Create work, assign agents, run tasks, request reviews, record decisions, and inspect the workspace as a persistent operating layer.
+      </p>
+      <div class="hero-bottom">
+        <div class="actions">
+          <button class="primary" id="bootstrapBtn">Launch Demo Company</button>
+          <button class="secondary" id="refreshBtn" disabled>Refresh Workspace</button>
+        </div>
+        <div class="statusbox">
+          <div class="statusline">
+            <span class="statusdot" id="statusDot"></span>
+            <span id="statusText">Waiting for an active workspace.</span>
+          </div>
         </div>
       </div>
-      ` : ''}
-      
-      ${data.sources && data.sources.length > 0 ? `
-      <div class="report-section">
-        <div class="section-title">🔗 SOURCES</div>
-        <ul class="report-sources">
-          ${data.sources.map(src => `<li><a href="${src}" target="_blank">${src}</a></li>`).join('')}
-        </ul>
-      </div>
-      ` : ''}
-    </div>
-  `;
+    </section>
 
-      chatContainer.appendChild(msg);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+    <section class="layout">
+      <div class="stack">
+        <section class="panel section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Workspace Overview</p>
+              <h2 class="section-title" id="workspaceTitle">No active workspace</h2>
+            </div>
+            <p class="section-subtitle" id="workspaceSubtitle">Bootstrap the demo workspace to begin.</p>
+          </div>
+          <div class="metrics">
+            <article class="metric">
+              <div class="metric-label">Organization</div>
+              <div class="metric-value" id="organizationName">-</div>
+              <div class="metric-note" id="organizationMission">No mission loaded</div>
+            </article>
+            <article class="metric">
+              <div class="metric-label">Workers</div>
+              <div class="metric-value" id="workerCount">0</div>
+              <div class="metric-note" id="workerNote">0 humans, 0 roles</div>
+            </article>
+            <article class="metric">
+              <div class="metric-label">Tasks</div>
+              <div class="metric-value" id="taskCount">0</div>
+              <div class="metric-note" id="taskNote">No active execution queue</div>
+            </article>
+            <article class="metric">
+              <div class="metric-label">Governance</div>
+              <div class="metric-value" id="eventCount">0</div>
+              <div class="metric-note" id="governanceNote">0 reviews, 0 decisions</div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Execution Surface</p>
+              <h2 class="section-title">Tasks, Artifacts, Event Log</h2>
+            </div>
+            <p class="section-subtitle">Tasks are the unit of execution. Artifacts, reviews, and decisions accumulate around them.</p>
+          </div>
+          <div class="boards">
+            <div>
+              <h3>Task Board</h3>
+              <div class="board" id="taskBoard"><div class="empty">No tasks loaded yet.</div></div>
+            </div>
+            <div>
+              <h3>Artifact Board</h3>
+              <div class="board" id="artifactBoard"><div class="empty">No artifacts loaded yet.</div></div>
+            </div>
+          </div>
+          <div style="margin-top:16px;">
+            <h3>Event Timeline</h3>
+            <div class="timeline" id="eventTimeline"><div class="empty">No events recorded yet.</div></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="stack">
+        <section class="panel section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Live Controls</p>
+              <h2 class="section-title">Run Workflow Actions</h2>
+            </div>
+            <p class="section-subtitle">These controls mutate the workspace directly through the current API.</p>
+          </div>
+          <div class="controls">
+            <article class="action-card">
+              <h3>Create Task</h3>
+              <div class="form-grid">
+                <label>Title<input id="taskTitleInput" placeholder="e.g. Draft approval workflow"></label>
+                <label>Type
+                  <select id="taskTypeInput">
+                    <option value="implementation">Implementation</option>
+                    <option value="design">Design</option>
+                    <option value="operations">Operations</option>
+                    <option value="review">Review</option>
+                    <option value="delivery">Delivery</option>
+                    <option value="general">General</option>
+                  </select>
+                </label>
+                <label>Priority
+                  <select id="taskPriorityInput">
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                    <option value="critical">Critical</option>
+                    <option value="low">Low</option>
+                  </select>
+                </label>
+                <label>Assigned Role
+                  <select id="roleSelect"></select>
+                </label>
+              </div>
+              <div class="form-grid single" style="margin-top:10px;">
+                <label>Description<textarea id="taskDescriptionInput" placeholder="Describe the work to be executed."></textarea></label>
+              </div>
+              <div class="inline-actions">
+                <button class="primary" id="createTaskBtn">Create Task</button>
+              </div>
+            </article>
+
+            <article class="action-card">
+              <h3>Selected Task</h3>
+              <div class="selected-summary" id="selectedTaskSummary">Select a task card to assign, execute, or send into review.</div>
+              <div class="form-grid" style="margin-top:12px;">
+                <label>Assign Worker
+                  <select id="agentSelect"></select>
+                </label>
+                <label>Reviewer
+                  <select id="reviewerSelect"></select>
+                </label>
+              </div>
+              <div class="inline-actions">
+                <button class="secondary" id="assignBtn">Assign Task</button>
+                <button class="primary" id="executeBtn">Execute Task</button>
+                <button class="secondary" id="requestReviewBtn">Request Review</button>
+              </div>
+            </article>
+
+            <article class="action-card">
+              <h3>Selected Review</h3>
+              <div class="selected-summary" id="selectedReviewSummary">Select a review card to approve it or request changes.</div>
+              <div class="form-grid single" style="margin-top:12px;">
+                <label>Review Summary<textarea id="reviewSummaryInput" placeholder="Optional review note."></textarea></label>
+              </div>
+              <div class="inline-actions">
+                <button class="primary" id="approveReviewBtn">Approve Review</button>
+                <button class="secondary" id="changesReviewBtn">Request Changes</button>
+              </div>
+            </article>
+
+            <article class="action-card">
+              <h3>Record Decision</h3>
+              <div class="form-grid">
+                <label>Title<input id="decisionTitleInput" placeholder="e.g. Adopt staged approval rule"></label>
+                <label>State
+                  <select id="decisionStateInput">
+                    <option value="proposed">Proposed</option>
+                    <option value="accepted">Accepted</option>
+                    <option value="rejected">Rejected</option>
+                    <option value="superseded">Superseded</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-grid single" style="margin-top:10px;">
+                <label>Summary<textarea id="decisionSummaryInput" placeholder="Explain the decision and what it affects."></textarea></label>
+              </div>
+              <div class="inline-actions">
+                <button class="primary" id="recordDecisionBtn">Record Decision</button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Organization</p>
+              <h2 class="section-title">Workers, Projects, Reviews, Decisions</h2>
+            </div>
+            <p class="section-subtitle">The workspace shows role ownership and governance state, not a conversation transcript.</p>
+          </div>
+          <div class="board" id="workerBoard"><div class="empty">No agents registered yet.</div></div>
+          <div style="margin-top:14px;">
+            <h3>Projects</h3>
+            <div class="board" id="projectBoard"><div class="empty">No projects available.</div></div>
+          </div>
+          <div style="margin-top:14px;">
+            <h3>Reviews</h3>
+            <div class="board" id="reviewBoard"><div class="empty">No reviews available.</div></div>
+          </div>
+          <div style="margin-top:14px;">
+            <h3>Decisions</h3>
+            <div class="board" id="decisionBoard"><div class="empty">No decisions recorded.</div></div>
+          </div>
+        </section>
+
+        <section class="panel section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Inspection</p>
+              <h2 class="section-title">Raw Workspace Snapshot</h2>
+            </div>
+            <p class="section-subtitle">Full backend state stays visible for debugging and transparency.</p>
+          </div>
+          <div class="raw"><pre id="rawJson">{}</pre></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    let snapshot = null;
+    let currentWorkspaceId = null;
+    let selectedTaskId = null;
+    let selectedReviewId = null;
+
+    const els = {
+      bootstrapBtn: document.getElementById("bootstrapBtn"),
+      refreshBtn: document.getElementById("refreshBtn"),
+      statusText: document.getElementById("statusText"),
+      statusDot: document.getElementById("statusDot"),
+      taskBoard: document.getElementById("taskBoard"),
+      artifactBoard: document.getElementById("artifactBoard"),
+      eventTimeline: document.getElementById("eventTimeline"),
+      workerBoard: document.getElementById("workerBoard"),
+      projectBoard: document.getElementById("projectBoard"),
+      reviewBoard: document.getElementById("reviewBoard"),
+      decisionBoard: document.getElementById("decisionBoard"),
+      rawJson: document.getElementById("rawJson"),
+      workspaceTitle: document.getElementById("workspaceTitle"),
+      workspaceSubtitle: document.getElementById("workspaceSubtitle"),
+      organizationName: document.getElementById("organizationName"),
+      organizationMission: document.getElementById("organizationMission"),
+      workerCount: document.getElementById("workerCount"),
+      workerNote: document.getElementById("workerNote"),
+      taskCount: document.getElementById("taskCount"),
+      taskNote: document.getElementById("taskNote"),
+      eventCount: document.getElementById("eventCount"),
+      governanceNote: document.getElementById("governanceNote"),
+      roleSelect: document.getElementById("roleSelect"),
+      agentSelect: document.getElementById("agentSelect"),
+      reviewerSelect: document.getElementById("reviewerSelect"),
+      selectedTaskSummary: document.getElementById("selectedTaskSummary"),
+      selectedReviewSummary: document.getElementById("selectedReviewSummary"),
+      taskTitleInput: document.getElementById("taskTitleInput"),
+      taskTypeInput: document.getElementById("taskTypeInput"),
+      taskPriorityInput: document.getElementById("taskPriorityInput"),
+      taskDescriptionInput: document.getElementById("taskDescriptionInput"),
+      reviewSummaryInput: document.getElementById("reviewSummaryInput"),
+      decisionTitleInput: document.getElementById("decisionTitleInput"),
+      decisionSummaryInput: document.getElementById("decisionSummaryInput"),
+      decisionStateInput: document.getElementById("decisionStateInput"),
+      createTaskBtn: document.getElementById("createTaskBtn"),
+      assignBtn: document.getElementById("assignBtn"),
+      executeBtn: document.getElementById("executeBtn"),
+      requestReviewBtn: document.getElementById("requestReviewBtn"),
+      approveReviewBtn: document.getElementById("approveReviewBtn"),
+      changesReviewBtn: document.getElementById("changesReviewBtn"),
+      recordDecisionBtn: document.getElementById("recordDecisionBtn")
+    };
+
+    function setStatus(message, kind = "idle") {
+      els.statusText.textContent = message;
+      els.statusDot.classList.remove("ready", "error");
+      if (kind === "ready") els.statusDot.classList.add("ready");
+      if (kind === "error") els.statusDot.classList.add("error");
     }
 
-    async function sendMessage() {
-      const text = userInput.value.trim();
-      if (!text) return;
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll("\"", "&quot;")
+        .replaceAll("'", "&#39;");
+    }
 
-      addMessage(text, "user");
-      userInput.value = "";
+    function nice(value) {
+      return String(value ?? "").replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
+    }
 
-      // Create loading steps message
-      const loadingMsg = document.createElement("div");
-      loadingMsg.classList.add("message", "ai");
-      loadingMsg.innerHTML = `
-    <div class="status-steps">
-      <div id="step-search" class="step pending">🔍 Searching sources...</div>
-      <div id="step-extract" class="step pending">📄 Extracting evidence...</div>
-      <div id="step-verify" class="step pending">🛡️ Verifying claims...</div>
-      <div id="step-report" class="step pending">📊 Generating report...</div>
-    </div>
-  `;
-      chatContainer.appendChild(loadingMsg);
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+    function byId(items, key) {
+      return Object.fromEntries((items || []).map((item) => [item[key], item]));
+    }
 
-      const steps = [
-        { id: "step-search", duration: 2500 },
-        { id: "step-extract", duration: 3500 },
-        { id: "step-verify", duration: 3000 },
-        { id: "step-report", duration: 2000 }
-      ];
+    function renderEmpty(target, message) {
+      target.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
+    }
 
-      let currentStep = 0;
-      function advanceSteps() {
-        if (currentStep < steps.length) {
-          const stepConfig = steps[currentStep];
-          const el = loadingMsg.querySelector(`#${stepConfig.id}`);
-          if (el) {
-            // Complete previous steps
-            for (let i = 0; i < currentStep; i++) {
-              const prevEl = loadingMsg.querySelector(`#${steps[i].id}`);
-              if (prevEl) {
-                prevEl.className = "step completed";
-              }
-            }
-            el.className = "step active";
-          }
-          currentStep++;
-          setTimeout(advanceSteps, stepConfig.duration);
-        }
+    async function fetchJson(url, options) {
+      const response = await fetch(url, options);
+      if (!response.ok) {
+        let message = `${url} failed with status ${response.status}`;
+        try {
+          const data = await response.json();
+          if (data.error) message = data.error;
+        } catch {}
+        throw new Error(message);
       }
-      advanceSteps();
+      return response.json();
+    }
 
+    function roleEntries() {
+      return Object.entries(snapshot?.organization?.roles || {});
+    }
+
+    function departmentMap() {
+      return snapshot?.organization?.departments || {};
+    }
+
+    function agentMap() {
+      return byId(snapshot?.agents || [], "agent_id");
+    }
+
+    function reviewMap() {
+      return byId(snapshot?.reviews || [], "review_id");
+    }
+
+    function taskMap() {
+      return byId(snapshot?.tasks || [], "task_id");
+    }
+
+    function selectedTask() {
+      return taskMap()[selectedTaskId] || null;
+    }
+
+    function selectedReview() {
+      return reviewMap()[selectedReviewId] || null;
+    }
+
+    function fillSelect(select, options, placeholder) {
+      const optionHtml = (options || []).map((opt) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join("");
+      select.innerHTML = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>${optionHtml}` : optionHtml;
+    }
+
+    function updateSelectors() {
+      const roles = roleEntries().map(([id, role]) => ({ value: id, label: role.name }));
+      fillSelect(els.roleSelect, roles, "Select role");
+
+      const agents = (snapshot?.agents || []).map((agent) => {
+        const role = snapshot.organization.roles[agent.role_id];
+        return { value: agent.agent_id, label: `${agent.name} · ${role ? role.name : "Unknown role"}` };
+      });
+      fillSelect(els.agentSelect, agents, "Select worker");
+
+      const reviewers = (snapshot?.agents || [])
+        .filter((agent) => (agent.skills || []).includes("review") || (agent.permissions || []).includes("review_work"))
+        .map((agent) => ({ value: agent.agent_id, label: agent.name }));
+      fillSelect(els.reviewerSelect, reviewers, "Select reviewer");
+
+      if (!selectedTaskId && snapshot?.tasks?.length) selectedTaskId = snapshot.tasks[0].task_id;
+      if (!selectedReviewId && snapshot?.reviews?.length) selectedReviewId = snapshot.reviews[0].review_id;
+    }
+
+    function statusTone(status) {
+      if (["completed", "approved"].includes(status)) return "ok";
+      if (["blocked", "canceled", "rejected"].includes(status)) return "danger";
+      if (["in_review", "pending", "changes_requested", "proposed"].includes(status)) return "warn";
+      return "teal";
+    }
+
+    function renderSnapshot(nextSnapshot) {
+      snapshot = nextSnapshot;
+      currentWorkspaceId = snapshot.workspace.workspace_id;
+      els.refreshBtn.disabled = false;
+      updateSelectors();
+
+      els.workspaceTitle.textContent = snapshot.workspace.name;
+      els.workspaceSubtitle.textContent = snapshot.workspace.description || "Workspace loaded.";
+      els.organizationName.textContent = snapshot.organization.name;
+      els.organizationMission.textContent = snapshot.organization.context?.mission || "No mission set";
+      els.workerCount.textContent = String((snapshot.agents || []).length);
+      els.workerNote.textContent = `${(snapshot.humans || []).length} humans, ${roleEntries().length} roles`;
+      els.taskCount.textContent = String((snapshot.tasks || []).length);
+      const activeTasks = (snapshot.tasks || []).filter((task) => ["ready", "in_progress", "in_review", "blocked"].includes(task.status)).length;
+      els.taskNote.textContent = `${activeTasks} active or pending`;
+      els.eventCount.textContent = String((snapshot.events || []).length);
+      els.governanceNote.textContent = `${(snapshot.reviews || []).length} reviews, ${(snapshot.decisions || []).length} decisions`;
+
+      renderTasks();
+      renderArtifacts();
+      renderEvents();
+      renderWorkers();
+      renderProjects();
+      renderReviews();
+      renderDecisions();
+      renderSelections();
+
+      els.rawJson.textContent = JSON.stringify(snapshot, null, 2);
+    }
+
+    function renderTasks() {
+      const tasks = snapshot.tasks || [];
+      if (!tasks.length) return renderEmpty(els.taskBoard, "No tasks loaded yet.");
+
+      const roles = snapshot.organization.roles || {};
+      const agents = agentMap();
+      els.taskBoard.innerHTML = tasks.map((task) => {
+        const role = roles[task.assigned_role_id];
+        const agent = agents[task.assigned_agent_id];
+        return `
+          <article class="card ${selectedTaskId === task.task_id ? "selected" : ""}" data-task-id="${escapeHtml(task.task_id)}">
+            <div class="card-top">
+              <div class="card-title">${escapeHtml(task.title)}</div>
+              <span class="pill ${statusTone(task.status)}">${escapeHtml(nice(task.status))}</span>
+            </div>
+            <div class="card-copy">${escapeHtml(task.description || "No description")}</div>
+            <div class="meta">
+              <span class="pill">${escapeHtml(nice(task.task_type))}</span>
+              <span class="pill">${escapeHtml(nice(task.priority))}</span>
+              ${role ? `<span class="pill gold">${escapeHtml(role.name)}</span>` : ""}
+              ${agent ? `<span class="pill teal">${escapeHtml(agent.name)}</span>` : `<span class="pill warn">Unassigned</span>`}
+            </div>
+          </article>
+        `;
+      }).join("");
+
+      els.taskBoard.querySelectorAll("[data-task-id]").forEach((node) => {
+        node.addEventListener("click", () => {
+          selectedTaskId = node.dataset.taskId;
+          renderTasks();
+          renderSelections();
+        });
+      });
+    }
+
+    function renderArtifacts() {
+      const artifacts = snapshot.artifacts || [];
+      if (!artifacts.length) return renderEmpty(els.artifactBoard, "No artifacts loaded yet.");
+      els.artifactBoard.innerHTML = artifacts.map((artifact) => `
+        <article class="card">
+          <div class="card-top">
+            <div class="card-title">${escapeHtml(artifact.name)}</div>
+            <span class="pill ok">${escapeHtml(nice(artifact.artifact_type))}</span>
+          </div>
+          <div class="card-copy">${escapeHtml((artifact.content || "No inline content").slice(0, 180))}</div>
+          <div class="meta">
+            <span class="pill">${escapeHtml(nice(artifact.review_state))}</span>
+            <span class="pill">v${escapeHtml(artifact.version)}</span>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderEvents() {
+      const events = [...(snapshot.events || [])].reverse();
+      if (!events.length) return renderEmpty(els.eventTimeline, "No events recorded yet.");
+      els.eventTimeline.innerHTML = events.map((event) => `
+        <article class="event">
+          <div class="event-title">${escapeHtml(nice(event.event_type))}</div>
+          <div class="event-copy">${escapeHtml(event.summary || "No summary")}</div>
+          <div class="event-meta">${escapeHtml(event.entity_type)} · ${escapeHtml(event.entity_id)}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderWorkers() {
+      const agents = snapshot.agents || [];
+      const roles = snapshot.organization.roles || {};
+      const departments = departmentMap();
+      if (!agents.length) return renderEmpty(els.workerBoard, "No agents registered yet.");
+      els.workerBoard.innerHTML = agents.map((agent) => {
+        const role = roles[agent.role_id];
+        const department = departments[agent.department_id];
+        return `
+          <article class="card">
+            <div class="card-top">
+              <div class="card-title">${escapeHtml(agent.name)}</div>
+              <span class="pill teal">${escapeHtml(agent.model || "No model")}</span>
+            </div>
+            <div class="card-copy">${escapeHtml(role ? role.description : "No role description")}</div>
+            <div class="meta">
+              ${role ? `<span class="pill gold">${escapeHtml(role.name)}</span>` : ""}
+              ${department ? `<span class="pill">${escapeHtml(department.name)}</span>` : ""}
+            </div>
+            <div class="card-copy">${escapeHtml((agent.skills || []).join(", ") || "No skills listed")}</div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderProjects() {
+      const projects = snapshot.projects || [];
+      if (!projects.length) return renderEmpty(els.projectBoard, "No projects available.");
+      els.projectBoard.innerHTML = projects.map((project) => `
+        <article class="card">
+          <div class="card-top">
+            <div class="card-title">${escapeHtml(project.name)}</div>
+            <span class="pill">${escapeHtml(nice(project.status))}</span>
+          </div>
+          <div class="card-copy">${escapeHtml(project.description || "No description")}</div>
+          <div class="meta">
+            <span class="pill">${escapeHtml((project.task_ids || []).length)} tasks</span>
+            <span class="pill">${escapeHtml((project.artifact_ids || []).length)} artifacts</span>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderReviews() {
+      const reviews = snapshot.reviews || [];
+      const tasks = taskMap();
+      const agents = agentMap();
+      if (!reviews.length) return renderEmpty(els.reviewBoard, "No reviews available.");
+      els.reviewBoard.innerHTML = reviews.map((review) => `
+        <article class="card ${selectedReviewId === review.review_id ? "selected" : ""}" data-review-id="${escapeHtml(review.review_id)}">
+          <div class="card-top">
+            <div class="card-title">${escapeHtml(review.summary || "Review requested")}</div>
+            <span class="pill ${statusTone(review.status)}">${escapeHtml(nice(review.status))}</span>
+          </div>
+          <div class="card-copy">${escapeHtml(tasks[review.task_id]?.title || review.task_id)}</div>
+          <div class="meta">
+            ${agents[review.reviewer_id] ? `<span class="pill gold">${escapeHtml(agents[review.reviewer_id].name)}</span>` : ""}
+          </div>
+        </article>
+      `).join("");
+
+      els.reviewBoard.querySelectorAll("[data-review-id]").forEach((node) => {
+        node.addEventListener("click", () => {
+          selectedReviewId = node.dataset.reviewId;
+          renderReviews();
+          renderSelections();
+        });
+      });
+    }
+
+    function renderDecisions() {
+      const decisions = snapshot.decisions || [];
+      if (!decisions.length) return renderEmpty(els.decisionBoard, "No decisions recorded.");
+      els.decisionBoard.innerHTML = decisions.map((decision) => `
+        <article class="card">
+          <div class="card-top">
+            <div class="card-title">${escapeHtml(decision.title)}</div>
+            <span class="pill violet">${escapeHtml(nice(decision.state))}</span>
+          </div>
+          <div class="card-copy">${escapeHtml(decision.summary || "No summary")}</div>
+        </article>
+      `).join("");
+    }
+
+    function renderSelections() {
+      const task = selectedTask();
+      if (task) {
+        const agent = agentMap()[task.assigned_agent_id];
+        els.selectedTaskSummary.innerHTML = `
+          <strong>${escapeHtml(task.title)}</strong><br>
+          Status: ${escapeHtml(nice(task.status))}<br>
+          Assigned: ${escapeHtml(agent ? agent.name : "No worker assigned")}
+        `;
+      } else {
+        els.selectedTaskSummary.textContent = "Select a task card to assign, execute, or send into review.";
+      }
+
+      const review = selectedReview();
+      if (review) {
+        const task = taskMap()[review.task_id];
+        els.selectedReviewSummary.innerHTML = `
+          <strong>${escapeHtml(review.summary || "Review requested")}</strong><br>
+          Task: ${escapeHtml(task ? task.title : review.task_id)}<br>
+          Status: ${escapeHtml(nice(review.status))}
+        `;
+      } else {
+        els.selectedReviewSummary.textContent = "Select a review card to approve it or request changes.";
+      }
+    }
+
+    async function updateWorkspaceFrom(url, options, successMessage) {
+      const next = await fetchJson(url, options);
+      renderSnapshot(next);
+      setStatus(successMessage, "ready");
+    }
+
+    async function bootstrapWorkspace() {
+      els.bootstrapBtn.disabled = true;
+      setStatus("Launching demo company...", "idle");
       try {
-        const response = await fetch("/research", {
+        const next = await fetchJson("/demo/bootstrap", { method: "POST" });
+        renderSnapshot(next);
+        setStatus("Demo company is live.", "ready");
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        els.bootstrapBtn.disabled = false;
+      }
+    }
+
+    async function refreshWorkspace() {
+      if (!currentWorkspaceId) return;
+      els.refreshBtn.disabled = true;
+      setStatus("Refreshing workspace...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}`, {}, "Workspace refreshed.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      } finally {
+        els.refreshBtn.disabled = false;
+      }
+    }
+
+    async function createTask() {
+      if (!currentWorkspaceId) return;
+      const title = els.taskTitleInput.value.trim();
+      if (!title) return setStatus("Task title is required.", "error");
+      setStatus("Creating task...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: text })
-        });
-
-        if (!response.ok) {
-          throw new Error("HTTP error " + response.status);
-        }
-
-        const data = await response.json();
-
-        // Remove loading message
-        loadingMsg.remove();
-
-        // Render the beautiful visual card
-        renderReport(data);
-      } catch (err) {
-        loadingMsg.remove();
-        addMessage("Error connecting to Synapse research server. Ensure server.py is running on port 5001.", "ai");
+          body: JSON.stringify({
+            title,
+            description: els.taskDescriptionInput.value.trim(),
+            task_type: els.taskTypeInput.value,
+            priority: els.taskPriorityInput.value,
+            assigned_role_id: els.roleSelect.value || null,
+            created_by: "system"
+          })
+        }, "Task created.");
+        els.taskTitleInput.value = "";
+        els.taskDescriptionInput.value = "";
+      } catch (error) {
+        setStatus(error.message, "error");
       }
     }
 
-    userInput.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") sendMessage();
-    });
+    async function assignTask() {
+      const task = selectedTask();
+      const agentId = els.agentSelect.value;
+      if (!task || !agentId) return setStatus("Select a task and a worker.", "error");
+      setStatus("Assigning task...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/assign`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ agent_id: agentId, actor_id: "system" })
+        }, "Task assigned.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function executeTask() {
+      const task = selectedTask();
+      if (!task) return setStatus("Select a task first.", "error");
+      setStatus("Executing task...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/execute`, {
+          method: "POST"
+        }, "Task executed.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function requestReview() {
+      const task = selectedTask();
+      const reviewerId = els.reviewerSelect.value;
+      if (!task || !reviewerId) return setStatus("Select a task and a reviewer.", "error");
+      setStatus("Requesting review...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/reviews`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reviewer_id: reviewerId,
+            summary: `Review requested for '${task.title}' from the workspace UI.`
+          })
+        }, "Review requested.");
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function updateReview(status) {
+      const review = selectedReview();
+      if (!review) return setStatus("Select a review first.", "error");
+      setStatus("Updating review...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/reviews/${review.review_id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            status,
+            actor_id: review.reviewer_id || "system",
+            summary: els.reviewSummaryInput.value.trim()
+          })
+        }, `Review marked ${nice(status).toLowerCase()}.`);
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    async function recordDecision() {
+      if (!currentWorkspaceId) return;
+      const title = els.decisionTitleInput.value.trim();
+      const summary = els.decisionSummaryInput.value.trim();
+      if (!title || !summary) return setStatus("Decision title and summary are required.", "error");
+      const task = selectedTask();
+      setStatus("Recording decision...", "idle");
+      try {
+        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/decisions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            summary,
+            state: els.decisionStateInput.value,
+            made_by: "system",
+            related_task_ids: task ? [task.task_id] : []
+          })
+        }, "Decision recorded.");
+        els.decisionTitleInput.value = "";
+        els.decisionSummaryInput.value = "";
+      } catch (error) {
+        setStatus(error.message, "error");
+      }
+    }
+
+    els.bootstrapBtn.addEventListener("click", bootstrapWorkspace);
+    els.refreshBtn.addEventListener("click", refreshWorkspace);
+    els.createTaskBtn.addEventListener("click", createTask);
+    els.assignBtn.addEventListener("click", assignTask);
+    els.executeBtn.addEventListener("click", executeTask);
+    els.requestReviewBtn.addEventListener("click", requestReview);
+    els.approveReviewBtn.addEventListener("click", () => updateReview("approved"));
+    els.changesReviewBtn.addEventListener("click", () => updateReview("changes_requested"));
+    els.recordDecisionBtn.addEventListener("click", recordDecision);
   </script>
 </body>
-
 </html>
