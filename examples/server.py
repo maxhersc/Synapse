@@ -173,10 +173,67 @@ def _append_message_entry(conversation: dict, *, sender: str, recipients: list[s
 
 
 def _agent_reply(agent: dict, organization_context: dict, user_message: str) -> str:
+    normalized = user_message.strip().lower()
+    compact = "".join(char for char in normalized if char.isalnum() or char.isspace()).strip()
+    tokens = compact.split()
+
+    greeting_terms = {"hi", "hello", "hey", "yo", "sup", "hiya"}
+    casual_phrases = {
+        "how are you",
+        "whats up",
+        "what's up",
+        "good morning",
+        "good afternoon",
+        "good evening",
+        "thanks",
+        "thank you",
+        "ok",
+        "okay",
+        "cool",
+        "nice",
+    }
+    work_terms = {
+        "task",
+        "plan",
+        "implement",
+        "implementation",
+        "build",
+        "review",
+        "approve",
+        "approval",
+        "workflow",
+        "decision",
+        "artifact",
+        "project",
+        "deliver",
+        "delivery",
+        "design",
+        "fix",
+        "ship",
+        "priority",
+        "roadmap",
+        "execute",
+        "milestone",
+        "owner",
+    }
+
+    if compact in greeting_terms or (tokens and len(tokens) <= 3 and all(token in greeting_terms for token in tokens)):
+        return f"Hi, this is {agent['name']}. What do you need?"
+
+    if any(phrase in normalized for phrase in casual_phrases) or len(tokens) <= 6:
+        return f"{agent['name']} here. I got your message."
+
+    is_work_related = any(token in work_terms for token in tokens)
     mission = organization_context.get("mission") or "the company mission"
     goals = organization_context.get("goals") or []
     goal_fragment = goals[0] if goals else "the current workspace goals"
     role_note = ", ".join(agent.get("responsibilities", [])[:2]) or "my assigned responsibilities"
+
+    if not is_work_related:
+        return (
+            f"I've got it. I'll respond as {agent['name']} and keep the next update focused on what you asked."
+        )
+
     return (
         f"I've received that and I will handle it as {agent['name']}. "
         f"I'll keep the response aligned with {mission.lower()} and focus on {goal_fragment.lower()}. "
