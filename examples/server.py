@@ -540,8 +540,11 @@ def send_message_route(workspace_id: str):
             return None
         conversations = await _read_conversations(workspace_id)
         agents = {agent["agent_id"]: agent for agent in snapshot.get("agents", [])}
+        resolved_target = target
 
         conversation = next((item for item in conversations if item["id"] == conversation_id), None) if conversation_id else None
+        if conversation is None and target:
+            conversation = next((item for item in conversations if item.get("target") == target), None)
         if conversation is None:
             recipient_agent_ids = _recipient_agent_ids(snapshot, target)
             if not recipient_agent_ids:
@@ -556,14 +559,14 @@ def send_message_route(workspace_id: str):
             conversations.append(conversation)
         else:
             recipient_agent_ids = conversation.get("participant_agent_ids", [])
-            target = conversation.get("target", target)
+            resolved_target = conversation.get("target", target)
 
         recipient_names = [agents[agent_id]["name"] for agent_id in recipient_agent_ids if agent_id in agents]
         audience = "group" if conversation.get("type") == "group" else "direct"
         _append_message_entry(
             conversation,
             sender=sender,
-            recipients=recipient_names or [target],
+            recipients=recipient_names or [resolved_target],
             body=body,
             kind="message",
             audience=audience,
