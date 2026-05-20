@@ -8,8 +8,8 @@ keeping an auditable event history.
 
 from __future__ import annotations
 
-import asyncio
 import time
+import threading
 from dataclasses import asdict
 from enum import Enum
 from typing import Any, Optional
@@ -33,7 +33,7 @@ class SharedMemory:
     """Async-safe state store for organizational workspaces."""
 
     def __init__(self) -> None:
-        self._lock = asyncio.Lock()
+        self._lock = threading.RLock()
         self.organizations: dict[str, Organization] = {}
         self.workspaces: dict[str, Workspace] = {}
         self.projects: dict[str, Project] = {}
@@ -47,31 +47,31 @@ class SharedMemory:
         self._store: dict[str, Any] = {}
 
     async def get(self, key: str, default: Any = None) -> Any:
-        async with self._lock:
+        with self._lock:
             return self._store.get(key, default)
 
     async def set(self, key: str, value: Any) -> None:
-        async with self._lock:
+        with self._lock:
             self._store[key] = value
 
     async def append(self, key: str, value: Any) -> None:
-        async with self._lock:
+        with self._lock:
             self._store.setdefault(key, []).append(value)
 
     async def delete(self, key: str) -> None:
-        async with self._lock:
+        with self._lock:
             self._store.pop(key, None)
 
     async def keys(self) -> list[str]:
-        async with self._lock:
+        with self._lock:
             return list(self._store.keys())
 
     async def all(self) -> dict[str, Any]:
-        async with self._lock:
+        with self._lock:
             return dict(self._store)
 
     async def clear(self) -> None:
-        async with self._lock:
+        with self._lock:
             self.organizations.clear()
             self.workspaces.clear()
             self.projects.clear()
@@ -85,62 +85,62 @@ class SharedMemory:
             self._store.clear()
 
     async def has(self, key: str) -> bool:
-        async with self._lock:
+        with self._lock:
             return key in self._store
 
     async def save_organization(self, organization: Organization) -> Organization:
-        async with self._lock:
+        with self._lock:
             organization.updated_at = time.time()
             self.organizations[organization.organization_id] = organization
             return organization
 
     async def save_workspace(self, workspace: Workspace) -> Workspace:
-        async with self._lock:
+        with self._lock:
             workspace.updated_at = time.time()
             self.workspaces[workspace.workspace_id] = workspace
             return workspace
 
     async def save_project(self, project: Project) -> Project:
-        async with self._lock:
+        with self._lock:
             self.projects[project.project_id] = project
             return project
 
     async def save_task(self, task: Task) -> Task:
-        async with self._lock:
+        with self._lock:
             task.updated_at = time.time()
             self.tasks[task.task_id] = task
             return task
 
     async def save_artifact(self, artifact: Artifact) -> Artifact:
-        async with self._lock:
+        with self._lock:
             artifact.updated_at = time.time()
             self.artifacts[artifact.artifact_id] = artifact
             return artifact
 
     async def save_decision(self, decision: Decision) -> Decision:
-        async with self._lock:
+        with self._lock:
             decision.updated_at = time.time()
             self.decisions[decision.decision_id] = decision
             return decision
 
     async def save_review(self, review: Review) -> Review:
-        async with self._lock:
+        with self._lock:
             review.updated_at = time.time()
             self.reviews[review.review_id] = review
             return review
 
     async def save_event(self, event: WorkspaceEvent) -> WorkspaceEvent:
-        async with self._lock:
+        with self._lock:
             self.events[event.event_id] = event
             return event
 
     async def save_agent(self, agent: OrganizationalAgent) -> OrganizationalAgent:
-        async with self._lock:
+        with self._lock:
             self.agents[agent.agent_id] = agent
             return agent
 
     async def save_human(self, human: HumanParticipant) -> HumanParticipant:
-        async with self._lock:
+        with self._lock:
             self.humans[human.participant_id] = human
             return human
 
@@ -148,7 +148,7 @@ class SharedMemory:
         self,
         workspace_id: str,
     ) -> Optional[WorkspaceSnapshot]:
-        async with self._lock:
+        with self._lock:
             workspace = self.workspaces.get(workspace_id)
             if not workspace:
                 return None

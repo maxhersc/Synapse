@@ -128,6 +128,18 @@ class SynapseAgent:
             summary=summary.strip(),
         )
 
+    def can_accept_task(self, task: Task, snapshot: WorkspaceSnapshot) -> bool:
+        required_permission = Permission.REVIEW_WORK if task.task_type.value == "review" else (
+            Permission.APPROVE_WORK if task.task_type.value == "approval" else Permission.EXECUTE_TASKS
+        )
+        if required_permission not in self.profile.permissions:
+            return False
+        if task.assigned_role_id:
+            role = snapshot.organization.roles.get(task.assigned_role_id)
+            if role and self.profile.role and role.name.lower() != self.profile.role.lower():
+                return False
+        return True
+
     def build_task_prompt(self, task: Task, snapshot: WorkspaceSnapshot) -> str:
         context = snapshot.organization.context
         return (

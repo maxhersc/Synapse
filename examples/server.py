@@ -53,6 +53,11 @@ class DemoBuilder(SynapseAgent):
     )
 
     async def execute_task(self, task, snapshot) -> TaskExecutionResult:
+        reviewer_ids = [agent.agent_id for agent in snapshot.agents if "review" in agent.skills]
+        operator_role_id = next(
+            (role.role_id for role in snapshot.organization.roles.values() if role.name == "Operator"),
+            "",
+        )
         return TaskExecutionResult(
             status=TaskStatus.IN_REVIEW,
             summary=f"Executed task '{task.title}' in workspace '{snapshot.workspace.name}'.",
@@ -63,13 +68,24 @@ class DemoBuilder(SynapseAgent):
                     "content": f"Workspace task result for: {task.description}",
                 }
             ],
+            requested_reviews=reviewer_ids[:1],
+            spawned_tasks=[
+                {
+                    "title": f"Publish summary for {task.title}",
+                    "description": "Prepare an operational summary once the implementation task is approved.",
+                    "task_type": TaskType.OPERATIONS.value,
+                    "assigned_role_id": operator_role_id,
+                    "dependencies": [task.task_id],
+                    "priority": Priority.NORMAL.value,
+                }
+            ] if operator_role_id else [],
         )
 
 
 class DemoReviewer(SynapseAgent):
     profile = AgentProfile(
         name="Reviewer",
-        role="Designated Reviewer",
+        role="Reviewer",
         department="Operations",
         strengths=["review", "governance"],
         permissions={Permission.REVIEW_WORK, Permission.APPROVE_WORK, Permission.VIEW_WORKSPACE},
@@ -80,12 +96,27 @@ class DemoReviewer(SynapseAgent):
 class DemoOperator(SynapseAgent):
     profile = AgentProfile(
         name="Operator",
-        role="Workflow Operator",
+        role="Operator",
         department="Operations",
         strengths=["coordination", "workflow"],
-        permissions={Permission.MANAGE_TASKS, Permission.ASSIGN_TASKS, Permission.RECORD_DECISIONS},
+        permissions={Permission.MANAGE_TASKS, Permission.ASSIGN_TASKS, Permission.RECORD_DECISIONS, Permission.EXECUTE_TASKS},
         description="Coordinates assignments and records operational decisions.",
     )
+
+    async def execute_task(self, task, snapshot) -> TaskExecutionResult:
+        return TaskExecutionResult(
+            status=TaskStatus.COMPLETED,
+            summary=f"Operator closed the loop on '{task.title}' and recorded the next operational update.",
+            decision_drafts=[
+                {
+                    "title": f"Operational update: {task.title}",
+                    "summary": "A downstream coordination task completed through the runtime autonomy layer.",
+                    "state": DecisionState.ACCEPTED.value,
+                    "related_task_ids": [task.task_id],
+                    "rationale": ["Demonstrates event-driven autonomous follow-through."],
+                }
+            ],
+        )
 
 
 runtime.add_agent(DemoBuilder())
@@ -253,6 +284,61 @@ def _sorted_conversations(conversations: list[dict]) -> list[dict]:
     return sorted(conversations, key=lambda item: item.get("updated_at", 0), reverse=True)
 
 
+def _build_visualization(snapshot: dict) -> dict:
+    tasks = snapshot.get("tasks", [])
+    agents = {agent["agent_id"]: agent for agent in snapshot.get("agents", [])}
+    events = snapshot.get("events", [])
+
+    task_graph = {
+        "nodes": [
+            {
+                "id": task["task_id"],
+                "label": task["title"],
+                "status": task["status"],
+                "assigned_agent_id": task.get("assigned_agent_id"),
+                "task_type": task.get("task_type"),
+            }
+            for task in tasks
+        ],
+        "edges": [
+            {"from": dependency_id, "to": task["task_id"]}
+            for task in tasks
+            for dependency_id in task.get("dependencies", [])
+        ],
+    }
+
+    agent_activity = []
+    for agent_id, agent in agents.items():
+        active = [task["title"] for task in tasks if task.get("assigned_agent_id") == agent_id and task["status"] in {"claimed", "in_progress", "review"}]
+        completed = [task["title"] for task in tasks if task.get("assigned_agent_id") == agent_id and task["status"] == "completed"]
+        agent_activity.append(
+            {
+                "agent_id": agent_id,
+                "name": agent["name"],
+                "active_tasks": active,
+                "completed_tasks": completed[-5:],
+                "state": "active" if active else "idle",
+            }
+        )
+
+    execution_heatmap: dict[str, dict[str, int]] = {}
+    for task in tasks:
+        bucket = execution_heatmap.setdefault(task["task_type"], {"active": 0, "completed": 0, "blocked": 0})
+        if task["status"] == "completed":
+            bucket["completed"] += 1
+        elif task["status"] == "blocked":
+            bucket["blocked"] += 1
+        else:
+            bucket["active"] += 1
+
+    return {
+        "task_flow_graph": task_graph,
+        "agent_activity": agent_activity,
+        "workspace_timeline": events[-25:],
+        "execution_heatmap": execution_heatmap,
+    }
+
+
 def _snapshot_or_404(workspace_id: str):
     snapshot = run(_enrich_snapshot(workspace_id))
     if not snapshot:
@@ -268,6 +354,7 @@ async def _enrich_snapshot(workspace_id: str) -> dict:
     snapshot["message_groups"] = _message_groups(snapshot)
     snapshot["conversations"] = conversations
     snapshot["messages"] = [message for conversation in conversations for message in conversation.get("messages", [])]
+    snapshot["visualization"] = _build_visualization(snapshot)
     return snapshot
 
 
@@ -325,7 +412,7 @@ async def _seed_demo_workspace() -> dict:
         "Operator",
         department_id=operations.department_id,
         description="Coordinates tasks and records decisions.",
-        permissions={Permission.MANAGE_TASKS, Permission.ASSIGN_TASKS, Permission.RECORD_DECISIONS},
+        permissions={Permission.MANAGE_TASKS, Permission.ASSIGN_TASKS, Permission.RECORD_DECISIONS, Permission.EXECUTE_TASKS},
     )
 
     builder = await runtime.register_worker(
@@ -384,17 +471,10 @@ async def _seed_demo_workspace() -> dict:
         priority=Priority.HIGH,
         project_id=project.project_id,
         assigned_role_id=builder_role.role_id,
+        required_approvals=1,
     )
-    await runtime.assign_task(workspace.workspace_id, task.task_id, builder.agent_id, operator.agent_id)
-    await runtime.execute_task(workspace.workspace_id, task.task_id)
+    await runtime.run_autonomy_cycle(workspace.workspace_id)
     artifact_id = runtime.memory.tasks[task.task_id].artifact_ids[0]
-    await runtime.create_review(
-        workspace.workspace_id,
-        task.task_id,
-        reviewer.agent_id,
-        artifact_id=artifact_id,
-        summary="Initial implementation ready for reviewer inspection.",
-    )
     await runtime.record_decision(
         workspace.workspace_id,
         "Adopt workspace-state demo flow",
@@ -690,6 +770,7 @@ def create_task_route(workspace_id: str):
             assigned_role_id=assigned_role_id,
             created_by=str(payload.get("created_by", "system")),
         )
+        await runtime.run_autonomy_cycle(workspace_id)
         return await _enrich_snapshot(workspace_id)
 
     snapshot = run(_create())
@@ -709,6 +790,7 @@ def assign_task_route(workspace_id: str, task_id: str):
         if workspace_id not in runtime.memory.workspaces or task_id not in runtime.memory.tasks or agent_id not in runtime.memory.agents:
             return None
         await runtime.assign_task(workspace_id, task_id, agent_id, str(payload.get("actor_id", "system")))
+        await runtime.run_autonomy_cycle(workspace_id)
         return await _enrich_snapshot(workspace_id)
 
     snapshot = run(_assign())
@@ -723,6 +805,7 @@ def execute_task_route(workspace_id: str, task_id: str):
         if workspace_id not in runtime.memory.workspaces or task_id not in runtime.memory.tasks:
             return None
         await runtime.execute_task(workspace_id, task_id)
+        await runtime.run_autonomy_cycle(workspace_id)
         return await _enrich_snapshot(workspace_id)
 
     try:
@@ -755,6 +838,7 @@ def create_review_route(workspace_id: str, task_id: str):
             artifact_id=artifact_id,
             summary=str(payload.get("summary", "Review requested from workspace UI.")),
         )
+        await runtime.run_autonomy_cycle(workspace_id)
         return await _enrich_snapshot(workspace_id)
 
     snapshot = run(_create_review())
@@ -774,7 +858,7 @@ def update_review_route(workspace_id: str, review_id: str):
         if workspace_id not in runtime.memory.workspaces or review_id not in runtime.memory.reviews:
             return None
         status = ReviewStatus(status_raw)
-        review = await runtime.update_review(
+        await runtime.update_review(
             workspace_id,
             review_id,
             status,
@@ -782,11 +866,7 @@ def update_review_route(workspace_id: str, review_id: str):
             summary=str(payload.get("summary", "")),
             requested_changes=payload.get("requested_changes"),
         )
-        task = runtime.memory.tasks[review.task_id]
-        if status == ReviewStatus.APPROVED:
-            await runtime.update_task_status(workspace_id, task.task_id, TaskStatus.APPROVED, str(payload.get("actor_id", "system")), "Task approved in review.")
-        elif status == ReviewStatus.CHANGES_REQUESTED:
-            await runtime.update_task_status(workspace_id, task.task_id, TaskStatus.BLOCKED, str(payload.get("actor_id", "system")), "Changes requested in review.")
+        await runtime.run_autonomy_cycle(workspace_id)
         return await _enrich_snapshot(workspace_id)
 
     try:
@@ -820,7 +900,8 @@ def record_decision_route(workspace_id: str):
             related_artifact_ids=payload.get("related_artifact_ids") or [],
             rationale=payload.get("rationale") or [],
         )
-        return await runtime.memory.export_workspace(workspace_id)
+        await runtime.run_autonomy_cycle(workspace_id)
+        return await _enrich_snapshot(workspace_id)
 
     try:
         snapshot = run(_record())

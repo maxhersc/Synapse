@@ -70,9 +70,14 @@ class TaskType(Enum):
 
 
 class TaskStatus(Enum):
+    CREATED = "created"
+    AVAILABLE = "available"
+    CLAIMED = "claimed"
     BACKLOG = "backlog"
     READY = "ready"
+    ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
+    REVIEW = "review"
     IN_REVIEW = "in_review"
     BLOCKED = "blocked"
     APPROVED = "approved"
@@ -119,6 +124,7 @@ class EventType(Enum):
     REVIEW_CREATED = "review_created"
     REVIEW_UPDATED = "review_updated"
     DECISION_RECORDED = "decision_recorded"
+    AUTONOMY_CYCLE = "autonomy_cycle"
 
 
 class ClaimStatus(Enum):
@@ -221,7 +227,7 @@ class Task:
     title: str = ""
     description: str = ""
     task_type: TaskType = TaskType.GENERAL
-    status: TaskStatus = TaskStatus.BACKLOG
+    status: TaskStatus = TaskStatus.CREATED
     priority: Priority = Priority.NORMAL
     project_id: Optional[str] = None
     assigned_role_id: Optional[str] = None
@@ -235,8 +241,11 @@ class Task:
     required_approvals: int = 0
     context: dict[str, Any] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)
+    status_reason: str = ""
+    transition_history: list[dict[str, Any]] = field(default_factory=list)
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    completed_at: Optional[float] = None
 
 
 @dataclass
@@ -338,6 +347,9 @@ class TaskExecutionResult:
     requested_reviews: list[str] = field(default_factory=list)
     escalations: list[str] = field(default_factory=list)
     context_updates: dict[str, Any] = field(default_factory=dict)
+    spawned_tasks: list[dict[str, Any]] = field(default_factory=list)
+    decision_drafts: list[dict[str, Any]] = field(default_factory=list)
+    outbound_messages: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
