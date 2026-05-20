@@ -3,27 +3,24 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Synapse Control Room</title>
+  <title>Synapse Workspace</title>
   <style>
     :root {
-      --bg: #efe4d2;
-      --surface: rgba(255, 249, 241, 0.9);
-      --surface-strong: rgba(255, 252, 247, 0.97);
-      --line: rgba(52, 33, 18, 0.12);
-      --ink: #23170f;
-      --muted: #6c5f52;
-      --accent: #b14d2b;
-      --accent-dark: #89371a;
-      --teal: #196b61;
-      --gold: #8f6421;
-      --violet: #5b4da6;
-      --ok: #2d7d32;
-      --warn: #b56b17;
-      --danger: #b23b2d;
-      --radius-xl: 28px;
+      --bg: #f4efe6;
+      --panel: #fffdf9;
+      --panel-soft: #f9f4eb;
+      --line: #e3d8c9;
+      --text: #211b15;
+      --muted: #6d6257;
+      --accent: #a64a2d;
+      --accent-dark: #87381f;
+      --blue: #2c5d91;
+      --green: #2f6b42;
+      --gold: #91692a;
+      --shadow: 0 16px 48px rgba(52, 37, 22, 0.08);
       --radius-lg: 22px;
       --radius-md: 16px;
-      --shadow: 0 22px 60px rgba(84, 52, 20, 0.12);
+      --radius-sm: 12px;
     }
 
     * { box-sizing: border-box; }
@@ -31,92 +28,66 @@
     body {
       margin: 0;
       min-height: 100vh;
-      color: var(--ink);
-      font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--text);
       background:
-        radial-gradient(circle at 15% 10%, rgba(177, 77, 43, 0.18), transparent 26%),
-        radial-gradient(circle at 90% 15%, rgba(25, 107, 97, 0.16), transparent 24%),
-        radial-gradient(circle at 85% 85%, rgba(91, 77, 166, 0.14), transparent 24%),
-        linear-gradient(180deg, #f5ebdd 0%, var(--bg) 60%, #dfcfb7 100%);
-      background-attachment: fixed;
-    }
-
-    .shell {
-      width: min(1480px, calc(100vw - 28px));
-      margin: 18px auto 42px;
-      display: grid;
-      gap: 18px;
-    }
-
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius-lg);
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(16px);
-    }
-
-    .hero {
-      padding: 28px;
-      border-radius: var(--radius-xl);
-      background:
-        linear-gradient(135deg, rgba(255, 252, 248, 0.98), rgba(245, 235, 221, 0.9)),
-        var(--surface);
-    }
-
-    .eyebrow {
-      margin: 0 0 12px;
-      font: 700 0.82rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: var(--muted);
+        radial-gradient(circle at top left, rgba(166, 74, 45, 0.1), transparent 26%),
+        linear-gradient(180deg, #f7f3eb 0%, var(--bg) 100%);
     }
 
     h1, h2, h3, p { margin: 0; }
 
-    h1 {
-      max-width: 760px;
-      font-size: clamp(2.5rem, 7vw, 5.2rem);
-      line-height: 0.9;
-      letter-spacing: -0.05em;
-    }
-
-    .hero-copy {
-      max-width: 760px;
-      margin-top: 16px;
-      color: var(--muted);
-      font-size: 1.05rem;
-      line-height: 1.65;
-    }
-
-    .hero-bottom {
-      margin-top: 24px;
+    .app {
+      width: min(1400px, calc(100vw - 24px));
+      margin: 12px auto 28px;
       display: grid;
-      grid-template-columns: 1.25fr 0.95fr;
+      grid-template-columns: 280px 1fr;
       gap: 16px;
-      align-items: end;
     }
 
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: center;
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow);
     }
 
-    button,
-    select,
-    textarea,
-    input {
+    .sidebar {
+      padding: 18px;
+      display: grid;
+      gap: 16px;
+      align-self: start;
+      position: sticky;
+      top: 12px;
+    }
+
+    .brand h1 {
+      font-size: 1.8rem;
+      letter-spacing: -0.04em;
+    }
+
+    .brand p {
+      margin-top: 8px;
+      color: var(--muted);
+      line-height: 1.5;
+      font-size: 0.94rem;
+    }
+
+    .launch {
+      display: grid;
+      gap: 10px;
+    }
+
+    button, input, textarea, select {
       font: inherit;
     }
 
     button {
       border: 0;
       border-radius: 999px;
-      padding: 14px 20px;
+      padding: 12px 16px;
       cursor: pointer;
-      transition: transform 160ms ease, opacity 160ms ease, background 160ms ease;
+      transition: background 140ms ease, transform 140ms ease, opacity 140ms ease;
     }
 
     button:hover { transform: translateY(-1px); }
@@ -124,142 +95,181 @@
 
     .primary {
       background: linear-gradient(135deg, var(--accent), var(--accent-dark));
-      color: #fff7ef;
+      color: white;
     }
 
     .secondary {
-      background: rgba(255, 252, 247, 0.8);
+      background: white;
       border: 1px solid var(--line);
-      color: var(--ink);
+      color: var(--text);
     }
 
-    .statusbox {
-      padding: 18px;
-      border-radius: var(--radius-md);
-      border: 1px solid rgba(52, 33, 18, 0.08);
-      background: rgba(255, 252, 247, 0.78);
-    }
-
-    .statusline {
+    .status {
       display: flex;
-      align-items: center;
       gap: 10px;
-      color: var(--muted);
-      font-size: 0.94rem;
-      line-height: 1.5;
-    }
-
-    .statusdot {
-      width: 10px;
-      height: 10px;
-      border-radius: 999px;
-      background: var(--warn);
-      box-shadow: 0 0 0 8px rgba(181, 107, 23, 0.12);
-    }
-
-    .statusdot.ready {
-      background: var(--ok);
-      box-shadow: 0 0 0 8px rgba(45, 125, 50, 0.12);
-    }
-
-    .statusdot.error {
-      background: var(--danger);
-      box-shadow: 0 0 0 8px rgba(178, 59, 45, 0.12);
-    }
-
-    .layout {
-      display: grid;
-      grid-template-columns: 1.3fr 0.92fr;
-      gap: 18px;
-    }
-
-    .stack {
-      display: grid;
-      gap: 18px;
-    }
-
-    .section {
-      padding: 22px;
-    }
-
-    .section-head {
-      display: flex;
-      justify-content: space-between;
-      gap: 14px;
-      align-items: end;
-      margin-bottom: 18px;
-    }
-
-    .section-title {
-      font-size: 1.5rem;
-      letter-spacing: -0.03em;
-    }
-
-    .section-subtitle {
-      max-width: 560px;
-      color: var(--muted);
-      font-size: 0.93rem;
-      line-height: 1.55;
-    }
-
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-    }
-
-    .metric, .card, .action-card {
-      padding: 18px;
-      border-radius: var(--radius-md);
-      border: 1px solid var(--line);
-      background: var(--surface-strong);
-    }
-
-    .metric-label {
-      color: var(--muted);
-      font: 700 0.8rem/1 "Avenir Next Condensed", "Gill Sans", sans-serif;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-    }
-
-    .metric-value {
-      margin-top: 18px;
-      font-size: 2.25rem;
-      line-height: 0.9;
-    }
-
-    .metric-note {
-      margin-top: 10px;
+      align-items: center;
       color: var(--muted);
       font-size: 0.93rem;
       line-height: 1.45;
     }
 
-    .boards {
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--gold);
+      flex: 0 0 auto;
+    }
+
+    .status-dot.ready { background: var(--green); }
+    .status-dot.error { background: #b13a2c; }
+
+    .summary {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
       display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
+      gap: 12px;
+    }
+
+    .summary-item strong {
+      display: block;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .summary-item span {
+      display: block;
+      line-height: 1.45;
+    }
+
+    .tabs {
+      display: grid;
+      gap: 8px;
+    }
+
+    .tab {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: 1px solid transparent;
+      border-radius: 14px;
+      padding: 12px 14px;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .tab.active {
+      background: var(--panel-soft);
+      border-color: var(--line);
+      color: var(--text);
+    }
+
+    .content {
+      display: grid;
       gap: 16px;
     }
 
-    .board {
+    .hero {
+      padding: 22px;
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 18px;
+    }
+
+    .hero h2 {
+      font-size: 2rem;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin-top: 8px;
+      color: var(--muted);
+      max-width: 700px;
+      line-height: 1.55;
+    }
+
+    .hero-meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      min-width: 420px;
+    }
+
+    .metric {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 10px;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.04em;
+    }
+
+    .view {
+      display: none;
+      padding: 20px;
+    }
+
+    .view.active {
+      display: block;
+    }
+
+    .view-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .section-title {
+      margin-bottom: 12px;
+    }
+
+    .section-title h3 {
+      font-size: 1.12rem;
+      letter-spacing: -0.02em;
+    }
+
+    .section-title p {
+      margin-top: 6px;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+
+    .card-list {
       display: grid;
       gap: 12px;
     }
 
     .card {
-      cursor: pointer;
-      transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
-    }
-
-    .card:hover {
-      transform: translateY(-1px);
-      border-color: rgba(52, 33, 18, 0.2);
-      box-shadow: 0 14px 28px rgba(84, 52, 20, 0.08);
-    }
-
-    .card.selected {
-      border-color: rgba(25, 107, 97, 0.42);
-      box-shadow: 0 0 0 3px rgba(25, 107, 97, 0.14);
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
     }
 
     .card-top {
@@ -269,450 +279,394 @@
       gap: 12px;
     }
 
-    .card-title {
-      font-size: 1.1rem;
-      line-height: 1.15;
+    .card h4 {
+      margin: 0;
+      font-size: 1rem;
     }
 
-    .card-copy {
-      margin-top: 10px;
+    .muted {
       color: var(--muted);
-      font-size: 0.95rem;
-      line-height: 1.55;
     }
 
-    .meta {
-      margin-top: 12px;
+    .small {
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    .pill-row {
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
+      margin-top: 10px;
     }
 
     .pill {
       display: inline-flex;
       align-items: center;
-      padding: 8px 11px;
       border-radius: 999px;
-      font: 700 0.75rem/1 "Avenir Next", sans-serif;
+      padding: 7px 10px;
+      background: white;
+      border: 1px solid var(--line);
+      font-size: 0.76rem;
+      font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      background: rgba(255, 252, 247, 0.76);
-      border: 1px solid rgba(52, 33, 18, 0.08);
-    }
-
-    .pill.teal { color: var(--teal); background: rgba(25, 107, 97, 0.08); }
-    .pill.gold { color: var(--gold); background: rgba(143, 100, 33, 0.08); }
-    .pill.violet { color: var(--violet); background: rgba(91, 77, 166, 0.08); }
-    .pill.ok { color: var(--ok); background: rgba(45, 125, 50, 0.08); }
-    .pill.warn { color: var(--warn); background: rgba(181, 107, 23, 0.08); }
-    .pill.danger { color: var(--danger); background: rgba(178, 59, 45, 0.08); }
-
-    .timeline {
-      position: relative;
-      display: grid;
-      gap: 14px;
-    }
-
-    .timeline::before {
-      content: "";
-      position: absolute;
-      left: 13px;
-      top: 8px;
-      bottom: 8px;
-      width: 1px;
-      background: linear-gradient(180deg, rgba(91, 77, 166, 0.35), rgba(91, 77, 166, 0.02));
-    }
-
-    .event {
-      position: relative;
-      padding-left: 36px;
-    }
-
-    .event::before {
-      content: "";
-      position: absolute;
-      left: 7px;
-      top: 8px;
-      width: 12px;
-      height: 12px;
-      border-radius: 999px;
-      background: var(--violet);
-      box-shadow: 0 0 0 6px rgba(91, 77, 166, 0.12);
-    }
-
-    .event-title {
-      font-size: 1rem;
-      margin-bottom: 4px;
-    }
-
-    .event-copy, .event-meta {
       color: var(--muted);
-      font-size: 0.92rem;
-      line-height: 1.5;
     }
 
-    .controls {
+    .pill.blue { color: var(--blue); }
+    .pill.green { color: var(--green); }
+    .pill.gold { color: var(--gold); }
+
+    .message-layout {
       display: grid;
-      gap: 14px;
+      grid-template-columns: 320px 1fr;
+      gap: 16px;
     }
 
-    .action-card h3 {
-      margin-bottom: 12px;
-      font-size: 1.05rem;
-    }
-
-    .form-grid {
+    .roster {
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 10px;
+      align-content: start;
     }
 
-    .form-grid.single {
-      grid-template-columns: 1fr;
+    .roster-card {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
     }
 
-    label {
+    .message-shell {
       display: grid;
-      gap: 6px;
-      color: var(--muted);
-      font-size: 0.88rem;
+      gap: 14px;
     }
 
-    input, textarea, select {
+    .composer, .context-form {
+      display: grid;
+      gap: 10px;
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: var(--panel-soft);
+    }
+
+    textarea, input, select {
       width: 100%;
-      border: 1px solid rgba(52, 33, 18, 0.12);
-      border-radius: 14px;
-      padding: 12px 14px;
-      background: rgba(255, 252, 247, 0.92);
-      color: var(--ink);
+      border: 1px solid var(--line);
+      background: white;
+      border-radius: 12px;
+      padding: 11px 12px;
+      color: var(--text);
     }
 
     textarea {
-      min-height: 90px;
+      min-height: 100px;
       resize: vertical;
+      line-height: 1.5;
+    }
+
+    .message-stream {
+      display: grid;
+      gap: 10px;
+      max-height: 720px;
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .message {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--line);
+      background: white;
+    }
+
+    .message-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .message-body {
+      line-height: 1.6;
+      font-size: 0.95rem;
     }
 
     .inline-actions {
       display: flex;
       flex-wrap: wrap;
       gap: 10px;
-      margin-top: 12px;
     }
 
-    .selected-summary, .empty {
+    .empty {
       padding: 16px;
-      border-radius: 14px;
-      border: 1px dashed rgba(52, 33, 18, 0.16);
-      background: rgba(255, 252, 247, 0.45);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--line);
       color: var(--muted);
-      font-size: 0.94rem;
-      line-height: 1.55;
+      background: var(--panel-soft);
+      line-height: 1.5;
     }
 
     .raw {
+      background: #17130f;
+      color: #f8eee3;
       border-radius: var(--radius-md);
-      overflow: hidden;
-      background: #17120e;
-    }
-
-    .raw::before {
-      content: "workspace snapshot";
-      display: block;
-      padding: 10px 14px;
-      border-bottom: 1px solid rgba(255, 248, 236, 0.08);
-      color: rgba(255, 248, 236, 0.7);
-      font: 700 0.74rem/1 "Avenir Next", sans-serif;
-      text-transform: uppercase;
-      letter-spacing: 0.12em;
-    }
-
-    pre {
-      margin: 0;
-      padding: 18px;
-      max-height: 480px;
       overflow: auto;
-      color: #f9f0e3;
-      font: 0.82rem/1.55 "SFMono-Regular", Menlo, monospace;
+      padding: 16px;
+      font: 0.82rem/1.5 "SFMono-Regular", Menlo, monospace;
+      max-height: 360px;
     }
 
     @media (max-width: 1180px) {
-      .layout, .hero-bottom, .boards { grid-template-columns: 1fr; }
-      .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .hero { display: grid; }
+      .hero-meta { min-width: 0; }
+      .message-layout, .two-col { grid-template-columns: 1fr; }
     }
 
-    @media (max-width: 860px) {
-      .shell { width: min(100vw - 18px, 100%); margin-top: 10px; }
-      .hero, .section { padding: 18px; }
-      .metrics, .form-grid { grid-template-columns: 1fr; }
-      h1 { font-size: 2.6rem; }
+    @media (max-width: 820px) {
+      .app { width: min(100vw - 16px, 100%); }
+      .hero-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
   </style>
 </head>
 <body>
-  <main class="shell">
-    <section class="panel hero">
-      <p class="eyebrow">Synapse Control Room</p>
-      <h1>Operate a digital workforce through structured state.</h1>
-      <p class="hero-copy">
-        This interface is built for the shift from research output to organizational execution.
-        Create work, assign agents, run tasks, request reviews, record decisions, and inspect the workspace as a persistent operating layer.
-      </p>
-      <div class="hero-bottom">
-        <div class="actions">
-          <button class="primary" id="bootstrapBtn">Launch Demo Company</button>
-          <button class="secondary" id="refreshBtn" disabled>Refresh Workspace</button>
+  <main class="app">
+    <aside class="panel sidebar">
+      <section class="brand">
+        <h1>Synapse</h1>
+        <p>Simple workspace for agent collaboration. Keep company context shared, see what the team is saying, and watch work happen.</p>
+      </section>
+
+      <section class="launch">
+        <button class="primary" id="launchBtn">Launch Demo Team</button>
+        <button class="secondary" id="refreshBtn" disabled>Refresh</button>
+        <div class="status">
+          <span class="status-dot" id="statusDot"></span>
+          <span id="statusText">Waiting for workspace.</span>
         </div>
-        <div class="statusbox">
-          <div class="statusline">
-            <span class="statusdot" id="statusDot"></span>
-            <span id="statusText">Waiting for an active workspace.</span>
+      </section>
+
+      <section class="summary">
+        <div class="summary-item">
+          <strong>Workspace</strong>
+          <span id="summaryWorkspace">Not started</span>
+        </div>
+        <div class="summary-item">
+          <strong>Company</strong>
+          <span id="summaryCompany">-</span>
+        </div>
+        <div class="summary-item">
+          <strong>Mission</strong>
+          <span id="summaryMission">-</span>
+        </div>
+      </section>
+
+      <nav class="tabs">
+        <button class="tab active" data-view="team">Team</button>
+        <button class="tab" data-view="messages">Messages</button>
+        <button class="tab" data-view="context">Context</button>
+        <button class="tab" data-view="work">Work</button>
+      </nav>
+    </aside>
+
+    <section class="content">
+      <header class="panel hero">
+        <div>
+          <h2 id="heroTitle">No team running</h2>
+          <p id="heroCopy">Start the demo workspace to load the company, the agents, their shared context, and the collaboration stream.</p>
+        </div>
+        <div class="hero-meta">
+          <div class="metric">
+            <strong>Agents</strong>
+            <span id="metricAgents">0</span>
+          </div>
+          <div class="metric">
+            <strong>Messages</strong>
+            <span id="metricMessages">0</span>
+          </div>
+          <div class="metric">
+            <strong>Tasks</strong>
+            <span id="metricTasks">0</span>
+          </div>
+          <div class="metric">
+            <strong>Decisions</strong>
+            <span id="metricDecisions">0</span>
           </div>
         </div>
-      </div>
-    </section>
+      </header>
 
-    <section class="layout">
-      <div class="stack">
-        <section class="panel section">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Workspace Overview</p>
-              <h2 class="section-title" id="workspaceTitle">No active workspace</h2>
-            </div>
-            <p class="section-subtitle" id="workspaceSubtitle">Bootstrap the demo workspace to begin.</p>
-          </div>
-          <div class="metrics">
-            <article class="metric">
-              <div class="metric-label">Organization</div>
-              <div class="metric-value" id="organizationName">-</div>
-              <div class="metric-note" id="organizationMission">No mission loaded</div>
-            </article>
-            <article class="metric">
-              <div class="metric-label">Workers</div>
-              <div class="metric-value" id="workerCount">0</div>
-              <div class="metric-note" id="workerNote">0 humans, 0 roles</div>
-            </article>
-            <article class="metric">
-              <div class="metric-label">Tasks</div>
-              <div class="metric-value" id="taskCount">0</div>
-              <div class="metric-note" id="taskNote">No active execution queue</div>
-            </article>
-            <article class="metric">
-              <div class="metric-label">Governance</div>
-              <div class="metric-value" id="eventCount">0</div>
-              <div class="metric-note" id="governanceNote">0 reviews, 0 decisions</div>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel section">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Execution Surface</p>
-              <h2 class="section-title">Tasks, Artifacts, Event Log</h2>
-            </div>
-            <p class="section-subtitle">Tasks are the unit of execution. Artifacts, reviews, and decisions accumulate around them.</p>
-          </div>
-          <div class="boards">
-            <div>
-              <h3>Task Board</h3>
-              <div class="board" id="taskBoard"><div class="empty">No tasks loaded yet.</div></div>
-            </div>
-            <div>
-              <h3>Artifact Board</h3>
-              <div class="board" id="artifactBoard"><div class="empty">No artifacts loaded yet.</div></div>
+      <section class="panel view active" id="view-team">
+        <div class="section-title">
+          <h3>Team Directory</h3>
+          <p>Every agent should be visible: who they are, what they do, and what context they operate under.</p>
+        </div>
+        <div class="two-col">
+          <div>
+            <div class="card-list" id="agentList">
+              <div class="empty">No agents loaded yet.</div>
             </div>
           </div>
-          <div style="margin-top:16px;">
-            <h3>Event Timeline</h3>
-            <div class="timeline" id="eventTimeline"><div class="empty">No events recorded yet.</div></div>
-          </div>
-        </section>
-      </div>
-
-      <div class="stack">
-        <section class="panel section">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Live Controls</p>
-              <h2 class="section-title">Run Workflow Actions</h2>
-            </div>
-            <p class="section-subtitle">These controls mutate the workspace directly through the current API.</p>
-          </div>
-          <div class="controls">
-            <article class="action-card">
-              <h3>Create Task</h3>
-              <div class="form-grid">
-                <label>Title<input id="taskTitleInput" placeholder="e.g. Draft approval workflow"></label>
-                <label>Type
-                  <select id="taskTypeInput">
-                    <option value="implementation">Implementation</option>
-                    <option value="design">Design</option>
-                    <option value="operations">Operations</option>
-                    <option value="review">Review</option>
-                    <option value="delivery">Delivery</option>
-                    <option value="general">General</option>
-                  </select>
-                </label>
-                <label>Priority
-                  <select id="taskPriorityInput">
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="critical">Critical</option>
-                    <option value="low">Low</option>
-                  </select>
-                </label>
-                <label>Assigned Role
-                  <select id="roleSelect"></select>
-                </label>
+          <div class="view-grid">
+            <section>
+              <div class="section-title">
+                <h3>Shared Company Context</h3>
+                <p>This is the information every agent should have in common.</p>
               </div>
-              <div class="form-grid single" style="margin-top:10px;">
-                <label>Description<textarea id="taskDescriptionInput" placeholder="Describe the work to be executed."></textarea></label>
+              <div class="card-list" id="contextSummary">
+                <div class="empty">No company context loaded yet.</div>
               </div>
+            </section>
+            <section>
+              <div class="section-title">
+                <h3>Recent Team Planning</h3>
+                <p>Quick scan of the latest agent-to-agent discussion.</p>
+              </div>
+              <div class="card-list" id="planningPreview">
+                <div class="empty">No messages yet.</div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel view" id="view-messages">
+        <div class="section-title">
+          <h3>Messages</h3>
+          <p>See the conversation between agents and send your own message to one agent or a whole group.</p>
+        </div>
+        <div class="message-layout">
+          <div class="roster" id="messageRoster">
+            <div class="empty">No team loaded yet.</div>
+          </div>
+          <div class="message-shell">
+            <div class="composer">
+              <div class="section-title">
+                <h3>Send Message</h3>
+                <p>Target one agent, a department, or everyone.</p>
+              </div>
+              <select id="messageTarget"></select>
+              <textarea id="messageBody" placeholder="Tell the team what to focus on, ask a question, or give direction."></textarea>
               <div class="inline-actions">
-                <button class="primary" id="createTaskBtn">Create Task</button>
+                <button class="primary" id="sendMessageBtn">Send Message</button>
               </div>
-            </article>
-
-            <article class="action-card">
-              <h3>Selected Task</h3>
-              <div class="selected-summary" id="selectedTaskSummary">Select a task card to assign, execute, or send into review.</div>
-              <div class="form-grid" style="margin-top:12px;">
-                <label>Assign Worker
-                  <select id="agentSelect"></select>
-                </label>
-                <label>Reviewer
-                  <select id="reviewerSelect"></select>
-                </label>
-              </div>
-              <div class="inline-actions">
-                <button class="secondary" id="assignBtn">Assign Task</button>
-                <button class="primary" id="executeBtn">Execute Task</button>
-                <button class="secondary" id="requestReviewBtn">Request Review</button>
-              </div>
-            </article>
-
-            <article class="action-card">
-              <h3>Selected Review</h3>
-              <div class="selected-summary" id="selectedReviewSummary">Select a review card to approve it or request changes.</div>
-              <div class="form-grid single" style="margin-top:12px;">
-                <label>Review Summary<textarea id="reviewSummaryInput" placeholder="Optional review note."></textarea></label>
-              </div>
-              <div class="inline-actions">
-                <button class="primary" id="approveReviewBtn">Approve Review</button>
-                <button class="secondary" id="changesReviewBtn">Request Changes</button>
-              </div>
-            </article>
-
-            <article class="action-card">
-              <h3>Record Decision</h3>
-              <div class="form-grid">
-                <label>Title<input id="decisionTitleInput" placeholder="e.g. Adopt staged approval rule"></label>
-                <label>State
-                  <select id="decisionStateInput">
-                    <option value="proposed">Proposed</option>
-                    <option value="accepted">Accepted</option>
-                    <option value="rejected">Rejected</option>
-                    <option value="superseded">Superseded</option>
-                  </select>
-                </label>
-              </div>
-              <div class="form-grid single" style="margin-top:10px;">
-                <label>Summary<textarea id="decisionSummaryInput" placeholder="Explain the decision and what it affects."></textarea></label>
-              </div>
-              <div class="inline-actions">
-                <button class="primary" id="recordDecisionBtn">Record Decision</button>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel section">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Organization</p>
-              <h2 class="section-title">Workers, Projects, Reviews, Decisions</h2>
             </div>
-            <p class="section-subtitle">The workspace shows role ownership and governance state, not a conversation transcript.</p>
-          </div>
-          <div class="board" id="workerBoard"><div class="empty">No agents registered yet.</div></div>
-          <div style="margin-top:14px;">
-            <h3>Projects</h3>
-            <div class="board" id="projectBoard"><div class="empty">No projects available.</div></div>
-          </div>
-          <div style="margin-top:14px;">
-            <h3>Reviews</h3>
-            <div class="board" id="reviewBoard"><div class="empty">No reviews available.</div></div>
-          </div>
-          <div style="margin-top:14px;">
-            <h3>Decisions</h3>
-            <div class="board" id="decisionBoard"><div class="empty">No decisions recorded.</div></div>
-          </div>
-        </section>
-
-        <section class="panel section">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Inspection</p>
-              <h2 class="section-title">Raw Workspace Snapshot</h2>
+            <div class="message-stream" id="messageStream">
+              <div class="empty">No messages loaded yet.</div>
             </div>
-            <p class="section-subtitle">Full backend state stays visible for debugging and transparency.</p>
           </div>
-          <div class="raw"><pre id="rawJson">{}</pre></div>
-        </section>
-      </div>
+        </div>
+      </section>
+
+      <section class="panel view" id="view-context">
+        <div class="section-title">
+          <h3>Company Context</h3>
+          <p>Set the mission, goals, communication style, and domain notes every agent should use.</p>
+        </div>
+        <div class="context-form">
+          <input id="contextMission" placeholder="Mission">
+          <textarea id="contextGoals" placeholder="Goals, one per line"></textarea>
+          <input id="contextWritingStyle" placeholder="Writing style">
+          <input id="contextCommunicationStyle" placeholder="Communication style">
+          <input id="contextBrandVoice" placeholder="Brand voice">
+          <textarea id="contextKnowledge" placeholder="Domain knowledge, one per line"></textarea>
+          <div class="inline-actions">
+            <button class="primary" id="saveContextBtn">Save Company Context</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel view" id="view-work">
+        <div class="section-title">
+          <h3>Work</h3>
+          <p>Tasks, reviews, and decisions stay visible, but they are secondary to the team and message flow.</p>
+        </div>
+        <div class="two-col">
+          <div class="view-grid">
+            <section>
+              <div class="section-title">
+                <h3>Tasks</h3>
+                <p>What the team is doing or has done.</p>
+              </div>
+              <div class="card-list" id="taskList">
+                <div class="empty">No tasks loaded yet.</div>
+              </div>
+            </section>
+            <section>
+              <div class="section-title">
+                <h3>Reviews</h3>
+                <p>Approval and change-request flow.</p>
+              </div>
+              <div class="card-list" id="reviewList">
+                <div class="empty">No reviews loaded yet.</div>
+              </div>
+            </section>
+          </div>
+          <div class="view-grid">
+            <section>
+              <div class="section-title">
+                <h3>Decisions</h3>
+                <p>Key decisions made by the team.</p>
+              </div>
+              <div class="card-list" id="decisionList">
+                <div class="empty">No decisions loaded yet.</div>
+              </div>
+            </section>
+            <section>
+              <div class="section-title">
+                <h3>Raw Snapshot</h3>
+                <p>Full workspace state for debugging.</p>
+              </div>
+              <div class="raw" id="rawSnapshot">{}</div>
+            </section>
+          </div>
+        </div>
+      </section>
     </section>
   </main>
 
   <script>
     let snapshot = null;
-    let currentWorkspaceId = null;
-    let selectedTaskId = null;
-    let selectedReviewId = null;
+    let workspaceId = null;
 
     const els = {
-      bootstrapBtn: document.getElementById("bootstrapBtn"),
+      launchBtn: document.getElementById("launchBtn"),
       refreshBtn: document.getElementById("refreshBtn"),
-      statusText: document.getElementById("statusText"),
       statusDot: document.getElementById("statusDot"),
-      taskBoard: document.getElementById("taskBoard"),
-      artifactBoard: document.getElementById("artifactBoard"),
-      eventTimeline: document.getElementById("eventTimeline"),
-      workerBoard: document.getElementById("workerBoard"),
-      projectBoard: document.getElementById("projectBoard"),
-      reviewBoard: document.getElementById("reviewBoard"),
-      decisionBoard: document.getElementById("decisionBoard"),
-      rawJson: document.getElementById("rawJson"),
-      workspaceTitle: document.getElementById("workspaceTitle"),
-      workspaceSubtitle: document.getElementById("workspaceSubtitle"),
-      organizationName: document.getElementById("organizationName"),
-      organizationMission: document.getElementById("organizationMission"),
-      workerCount: document.getElementById("workerCount"),
-      workerNote: document.getElementById("workerNote"),
-      taskCount: document.getElementById("taskCount"),
-      taskNote: document.getElementById("taskNote"),
-      eventCount: document.getElementById("eventCount"),
-      governanceNote: document.getElementById("governanceNote"),
-      roleSelect: document.getElementById("roleSelect"),
-      agentSelect: document.getElementById("agentSelect"),
-      reviewerSelect: document.getElementById("reviewerSelect"),
-      selectedTaskSummary: document.getElementById("selectedTaskSummary"),
-      selectedReviewSummary: document.getElementById("selectedReviewSummary"),
-      taskTitleInput: document.getElementById("taskTitleInput"),
-      taskTypeInput: document.getElementById("taskTypeInput"),
-      taskPriorityInput: document.getElementById("taskPriorityInput"),
-      taskDescriptionInput: document.getElementById("taskDescriptionInput"),
-      reviewSummaryInput: document.getElementById("reviewSummaryInput"),
-      decisionTitleInput: document.getElementById("decisionTitleInput"),
-      decisionSummaryInput: document.getElementById("decisionSummaryInput"),
-      decisionStateInput: document.getElementById("decisionStateInput"),
-      createTaskBtn: document.getElementById("createTaskBtn"),
-      assignBtn: document.getElementById("assignBtn"),
-      executeBtn: document.getElementById("executeBtn"),
-      requestReviewBtn: document.getElementById("requestReviewBtn"),
-      approveReviewBtn: document.getElementById("approveReviewBtn"),
-      changesReviewBtn: document.getElementById("changesReviewBtn"),
-      recordDecisionBtn: document.getElementById("recordDecisionBtn")
+      statusText: document.getElementById("statusText"),
+      summaryWorkspace: document.getElementById("summaryWorkspace"),
+      summaryCompany: document.getElementById("summaryCompany"),
+      summaryMission: document.getElementById("summaryMission"),
+      heroTitle: document.getElementById("heroTitle"),
+      heroCopy: document.getElementById("heroCopy"),
+      metricAgents: document.getElementById("metricAgents"),
+      metricMessages: document.getElementById("metricMessages"),
+      metricTasks: document.getElementById("metricTasks"),
+      metricDecisions: document.getElementById("metricDecisions"),
+      agentList: document.getElementById("agentList"),
+      contextSummary: document.getElementById("contextSummary"),
+      planningPreview: document.getElementById("planningPreview"),
+      messageRoster: document.getElementById("messageRoster"),
+      messageTarget: document.getElementById("messageTarget"),
+      messageBody: document.getElementById("messageBody"),
+      messageStream: document.getElementById("messageStream"),
+      contextMission: document.getElementById("contextMission"),
+      contextGoals: document.getElementById("contextGoals"),
+      contextWritingStyle: document.getElementById("contextWritingStyle"),
+      contextCommunicationStyle: document.getElementById("contextCommunicationStyle"),
+      contextBrandVoice: document.getElementById("contextBrandVoice"),
+      contextKnowledge: document.getElementById("contextKnowledge"),
+      taskList: document.getElementById("taskList"),
+      reviewList: document.getElementById("reviewList"),
+      decisionList: document.getElementById("decisionList"),
+      rawSnapshot: document.getElementById("rawSnapshot"),
+      saveContextBtn: document.getElementById("saveContextBtn"),
+      sendMessageBtn: document.getElementById("sendMessageBtn")
     };
 
     function setStatus(message, kind = "idle") {
@@ -735,14 +689,6 @@
       return String(value ?? "").replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
     }
 
-    function byId(items, key) {
-      return Object.fromEntries((items || []).map((item) => [item[key], item]));
-    }
-
-    function renderEmpty(target, message) {
-      target.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
-    }
-
     async function fetchJson(url, options) {
       const response = await fetch(url, options);
       if (!response.ok) {
@@ -756,296 +702,215 @@
       return response.json();
     }
 
-    function roleEntries() {
-      return Object.entries(snapshot?.organization?.roles || {});
+    function renderEmpty(target, message) {
+      target.innerHTML = `<div class="empty">${escapeHtml(message)}</div>`;
     }
 
-    function departmentMap() {
-      return snapshot?.organization?.departments || {};
-    }
-
-    function agentMap() {
-      return byId(snapshot?.agents || [], "agent_id");
-    }
-
-    function reviewMap() {
-      return byId(snapshot?.reviews || [], "review_id");
-    }
-
-    function taskMap() {
-      return byId(snapshot?.tasks || [], "task_id");
-    }
-
-    function selectedTask() {
-      return taskMap()[selectedTaskId] || null;
-    }
-
-    function selectedReview() {
-      return reviewMap()[selectedReviewId] || null;
-    }
-
-    function fillSelect(select, options, placeholder) {
-      const optionHtml = (options || []).map((opt) => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join("");
-      select.innerHTML = placeholder ? `<option value="">${escapeHtml(placeholder)}</option>${optionHtml}` : optionHtml;
-    }
-
-    function updateSelectors() {
-      const roles = roleEntries().map(([id, role]) => ({ value: id, label: role.name }));
-      fillSelect(els.roleSelect, roles, "Select role");
-
-      const agents = (snapshot?.agents || []).map((agent) => {
-        const role = snapshot.organization.roles[agent.role_id];
-        return { value: agent.agent_id, label: `${agent.name} · ${role ? role.name : "Unknown role"}` };
-      });
-      fillSelect(els.agentSelect, agents, "Select worker");
-
-      const reviewers = (snapshot?.agents || [])
-        .filter((agent) => (agent.skills || []).includes("review") || (agent.permissions || []).includes("review_work"))
-        .map((agent) => ({ value: agent.agent_id, label: agent.name }));
-      fillSelect(els.reviewerSelect, reviewers, "Select reviewer");
-
-      if (!selectedTaskId && snapshot?.tasks?.length) selectedTaskId = snapshot.tasks[0].task_id;
-      if (!selectedReviewId && snapshot?.reviews?.length) selectedReviewId = snapshot.reviews[0].review_id;
-    }
-
-    function statusTone(status) {
-      if (["completed", "approved"].includes(status)) return "ok";
-      if (["blocked", "canceled", "rejected"].includes(status)) return "danger";
-      if (["in_review", "pending", "changes_requested", "proposed"].includes(status)) return "warn";
-      return "teal";
+    function groupLabel(groupId) {
+      return (snapshot?.message_groups || []).find((group) => group.id === groupId)?.label || groupId;
     }
 
     function renderSnapshot(nextSnapshot) {
       snapshot = nextSnapshot;
-      currentWorkspaceId = snapshot.workspace.workspace_id;
+      workspaceId = snapshot.workspace.workspace_id;
       els.refreshBtn.disabled = false;
-      updateSelectors();
 
-      els.workspaceTitle.textContent = snapshot.workspace.name;
-      els.workspaceSubtitle.textContent = snapshot.workspace.description || "Workspace loaded.";
-      els.organizationName.textContent = snapshot.organization.name;
-      els.organizationMission.textContent = snapshot.organization.context?.mission || "No mission set";
-      els.workerCount.textContent = String((snapshot.agents || []).length);
-      els.workerNote.textContent = `${(snapshot.humans || []).length} humans, ${roleEntries().length} roles`;
-      els.taskCount.textContent = String((snapshot.tasks || []).length);
-      const activeTasks = (snapshot.tasks || []).filter((task) => ["ready", "in_progress", "in_review", "blocked"].includes(task.status)).length;
-      els.taskNote.textContent = `${activeTasks} active or pending`;
-      els.eventCount.textContent = String((snapshot.events || []).length);
-      els.governanceNote.textContent = `${(snapshot.reviews || []).length} reviews, ${(snapshot.decisions || []).length} decisions`;
+      const context = snapshot.organization.context || {};
+      els.summaryWorkspace.textContent = snapshot.workspace.name;
+      els.summaryCompany.textContent = snapshot.organization.name;
+      els.summaryMission.textContent = context.mission || "-";
+      els.heroTitle.textContent = snapshot.workspace.name;
+      els.heroCopy.textContent = snapshot.workspace.description || "Workspace loaded.";
+      els.metricAgents.textContent = String((snapshot.agents || []).length);
+      els.metricMessages.textContent = String((snapshot.messages || []).length);
+      els.metricTasks.textContent = String((snapshot.tasks || []).length);
+      els.metricDecisions.textContent = String((snapshot.decisions || []).length);
 
-      renderTasks();
-      renderArtifacts();
-      renderEvents();
-      renderWorkers();
-      renderProjects();
-      renderReviews();
-      renderDecisions();
-      renderSelections();
+      els.contextMission.value = context.mission || "";
+      els.contextGoals.value = (context.goals || []).join("\n");
+      els.contextWritingStyle.value = context.writing_style || "";
+      els.contextCommunicationStyle.value = context.communication_style || "";
+      els.contextBrandVoice.value = context.brand_voice || "";
+      els.contextKnowledge.value = (context.domain_knowledge || []).join("\n");
 
-      els.rawJson.textContent = JSON.stringify(snapshot, null, 2);
+      renderTeam();
+      renderMessages();
+      renderWork();
+      els.rawSnapshot.textContent = JSON.stringify(snapshot, null, 2);
     }
 
-    function renderTasks() {
-      const tasks = snapshot.tasks || [];
-      if (!tasks.length) return renderEmpty(els.taskBoard, "No tasks loaded yet.");
-
+    function renderTeam() {
       const roles = snapshot.organization.roles || {};
-      const agents = agentMap();
-      els.taskBoard.innerHTML = tasks.map((task) => {
-        const role = roles[task.assigned_role_id];
-        const agent = agents[task.assigned_agent_id];
-        return `
-          <article class="card ${selectedTaskId === task.task_id ? "selected" : ""}" data-task-id="${escapeHtml(task.task_id)}">
-            <div class="card-top">
-              <div class="card-title">${escapeHtml(task.title)}</div>
-              <span class="pill ${statusTone(task.status)}">${escapeHtml(nice(task.status))}</span>
-            </div>
-            <div class="card-copy">${escapeHtml(task.description || "No description")}</div>
-            <div class="meta">
-              <span class="pill">${escapeHtml(nice(task.task_type))}</span>
-              <span class="pill">${escapeHtml(nice(task.priority))}</span>
-              ${role ? `<span class="pill gold">${escapeHtml(role.name)}</span>` : ""}
-              ${agent ? `<span class="pill teal">${escapeHtml(agent.name)}</span>` : `<span class="pill warn">Unassigned</span>`}
-            </div>
-          </article>
-        `;
-      }).join("");
-
-      els.taskBoard.querySelectorAll("[data-task-id]").forEach((node) => {
-        node.addEventListener("click", () => {
-          selectedTaskId = node.dataset.taskId;
-          renderTasks();
-          renderSelections();
-        });
-      });
-    }
-
-    function renderArtifacts() {
-      const artifacts = snapshot.artifacts || [];
-      if (!artifacts.length) return renderEmpty(els.artifactBoard, "No artifacts loaded yet.");
-      els.artifactBoard.innerHTML = artifacts.map((artifact) => `
-        <article class="card">
-          <div class="card-top">
-            <div class="card-title">${escapeHtml(artifact.name)}</div>
-            <span class="pill ok">${escapeHtml(nice(artifact.artifact_type))}</span>
-          </div>
-          <div class="card-copy">${escapeHtml((artifact.content || "No inline content").slice(0, 180))}</div>
-          <div class="meta">
-            <span class="pill">${escapeHtml(nice(artifact.review_state))}</span>
-            <span class="pill">v${escapeHtml(artifact.version)}</span>
-          </div>
-        </article>
-      `).join("");
-    }
-
-    function renderEvents() {
-      const events = [...(snapshot.events || [])].reverse();
-      if (!events.length) return renderEmpty(els.eventTimeline, "No events recorded yet.");
-      els.eventTimeline.innerHTML = events.map((event) => `
-        <article class="event">
-          <div class="event-title">${escapeHtml(nice(event.event_type))}</div>
-          <div class="event-copy">${escapeHtml(event.summary || "No summary")}</div>
-          <div class="event-meta">${escapeHtml(event.entity_type)} · ${escapeHtml(event.entity_id)}</div>
-        </article>
-      `).join("");
-    }
-
-    function renderWorkers() {
+      const departments = snapshot.organization.departments || {};
       const agents = snapshot.agents || [];
-      const roles = snapshot.organization.roles || {};
-      const departments = departmentMap();
-      if (!agents.length) return renderEmpty(els.workerBoard, "No agents registered yet.");
-      els.workerBoard.innerHTML = agents.map((agent) => {
-        const role = roles[agent.role_id];
-        const department = departments[agent.department_id];
-        return `
+
+      if (!agents.length) {
+        renderEmpty(els.agentList, "No agents loaded yet.");
+      } else {
+        els.agentList.innerHTML = agents.map((agent) => {
+          const role = roles[agent.role_id];
+          const department = departments[agent.department_id];
+          return `
+            <article class="card">
+              <div class="card-top">
+                <h4>${escapeHtml(agent.name)}</h4>
+                <span class="pill blue">${escapeHtml(agent.model || "No model")}</span>
+              </div>
+              <p class="small muted" style="margin-top:8px;">${escapeHtml(role?.description || "No role description")}</p>
+              <div class="pill-row">
+                ${role ? `<span class="pill gold">${escapeHtml(role.name)}</span>` : ""}
+                ${department ? `<span class="pill">${escapeHtml(department.name)}</span>` : ""}
+              </div>
+              <p class="small muted" style="margin-top:10px;"><strong>Skills:</strong> ${escapeHtml((agent.skills || []).join(", ") || "None listed")}</p>
+              <p class="small muted" style="margin-top:8px;"><strong>Responsibilities:</strong> ${escapeHtml((agent.responsibilities || []).join(", ") || "None listed")}</p>
+            </article>
+          `;
+        }).join("");
+      }
+
+      const context = snapshot.organization.context || {};
+      els.contextSummary.innerHTML = `
+        <article class="card">
+          <h4>Mission</h4>
+          <p class="small muted" style="margin-top:8px;">${escapeHtml(context.mission || "No mission set")}</p>
+        </article>
+        <article class="card">
+          <h4>Goals</h4>
+          <p class="small muted" style="margin-top:8px;">${escapeHtml((context.goals || []).join(" • ") || "No goals set")}</p>
+        </article>
+        <article class="card">
+          <h4>Communication</h4>
+          <p class="small muted" style="margin-top:8px;">${escapeHtml(context.communication_style || "No communication style set")}</p>
+        </article>
+      `;
+
+      const planning = (snapshot.messages || []).slice(-4).reverse();
+      if (!planning.length) {
+        renderEmpty(els.planningPreview, "No messages yet.");
+      } else {
+        els.planningPreview.innerHTML = planning.map((message) => `
           <article class="card">
             <div class="card-top">
-              <div class="card-title">${escapeHtml(agent.name)}</div>
-              <span class="pill teal">${escapeHtml(agent.model || "No model")}</span>
+              <h4>${escapeHtml(message.sender)}</h4>
+              <span class="pill">${escapeHtml(nice(message.kind || "message"))}</span>
             </div>
-            <div class="card-copy">${escapeHtml(role ? role.description : "No role description")}</div>
-            <div class="meta">
-              ${role ? `<span class="pill gold">${escapeHtml(role.name)}</span>` : ""}
-              ${department ? `<span class="pill">${escapeHtml(department.name)}</span>` : ""}
-            </div>
-            <div class="card-copy">${escapeHtml((agent.skills || []).join(", ") || "No skills listed")}</div>
+            <p class="small muted" style="margin-top:8px;">${escapeHtml(message.body)}</p>
           </article>
-        `;
-      }).join("");
+        `).join("");
+      }
     }
 
-    function renderProjects() {
-      const projects = snapshot.projects || [];
-      if (!projects.length) return renderEmpty(els.projectBoard, "No projects available.");
-      els.projectBoard.innerHTML = projects.map((project) => `
-        <article class="card">
-          <div class="card-top">
-            <div class="card-title">${escapeHtml(project.name)}</div>
-            <span class="pill">${escapeHtml(nice(project.status))}</span>
-          </div>
-          <div class="card-copy">${escapeHtml(project.description || "No description")}</div>
-          <div class="meta">
-            <span class="pill">${escapeHtml((project.task_ids || []).length)} tasks</span>
-            <span class="pill">${escapeHtml((project.artifact_ids || []).length)} artifacts</span>
-          </div>
-        </article>
-      `).join("");
+    function renderMessages() {
+      const agents = snapshot.agents || [];
+      const groups = snapshot.message_groups || [];
+
+      if (!agents.length) {
+        renderEmpty(els.messageRoster, "No team loaded yet.");
+      } else {
+        els.messageRoster.innerHTML = agents.map((agent) => `
+          <article class="roster-card">
+            <strong>${escapeHtml(agent.name)}</strong>
+            <p class="small muted" style="margin-top:6px;">${escapeHtml((agent.skills || []).join(", ") || "No skills listed")}</p>
+          </article>
+        `).join("");
+      }
+
+      els.messageTarget.innerHTML = [
+        ...groups.map((group) => `<option value="${escapeHtml(group.id)}">${escapeHtml(group.label)}</option>`),
+        ...agents.map((agent) => `<option value="${escapeHtml(agent.agent_id)}">${escapeHtml(agent.name)}</option>`)
+      ].join("");
+
+      const messages = snapshot.messages || [];
+      if (!messages.length) {
+        renderEmpty(els.messageStream, "No messages loaded yet.");
+      } else {
+        els.messageStream.innerHTML = messages.slice().reverse().map((message) => `
+          <article class="message">
+            <div class="message-head">
+              <span><strong>${escapeHtml(message.sender)}</strong> → ${escapeHtml((message.recipients || []).join(", "))}</span>
+              <span>${escapeHtml(nice(message.kind || "message"))}</span>
+            </div>
+            <div class="message-body">${escapeHtml(message.body)}</div>
+          </article>
+        `).join("");
+      }
     }
 
-    function renderReviews() {
+    function renderWork() {
+      const tasks = snapshot.tasks || [];
       const reviews = snapshot.reviews || [];
-      const tasks = taskMap();
-      const agents = agentMap();
-      if (!reviews.length) return renderEmpty(els.reviewBoard, "No reviews available.");
-      els.reviewBoard.innerHTML = reviews.map((review) => `
-        <article class="card ${selectedReviewId === review.review_id ? "selected" : ""}" data-review-id="${escapeHtml(review.review_id)}">
-          <div class="card-top">
-            <div class="card-title">${escapeHtml(review.summary || "Review requested")}</div>
-            <span class="pill ${statusTone(review.status)}">${escapeHtml(nice(review.status))}</span>
-          </div>
-          <div class="card-copy">${escapeHtml(tasks[review.task_id]?.title || review.task_id)}</div>
-          <div class="meta">
-            ${agents[review.reviewer_id] ? `<span class="pill gold">${escapeHtml(agents[review.reviewer_id].name)}</span>` : ""}
-          </div>
-        </article>
-      `).join("");
-
-      els.reviewBoard.querySelectorAll("[data-review-id]").forEach((node) => {
-        node.addEventListener("click", () => {
-          selectedReviewId = node.dataset.reviewId;
-          renderReviews();
-          renderSelections();
-        });
-      });
-    }
-
-    function renderDecisions() {
       const decisions = snapshot.decisions || [];
-      if (!decisions.length) return renderEmpty(els.decisionBoard, "No decisions recorded.");
-      els.decisionBoard.innerHTML = decisions.map((decision) => `
-        <article class="card">
-          <div class="card-top">
-            <div class="card-title">${escapeHtml(decision.title)}</div>
-            <span class="pill violet">${escapeHtml(nice(decision.state))}</span>
-          </div>
-          <div class="card-copy">${escapeHtml(decision.summary || "No summary")}</div>
-        </article>
-      `).join("");
-    }
+      const agentsById = Object.fromEntries((snapshot.agents || []).map((agent) => [agent.agent_id, agent]));
 
-    function renderSelections() {
-      const task = selectedTask();
-      if (task) {
-        const agent = agentMap()[task.assigned_agent_id];
-        els.selectedTaskSummary.innerHTML = `
-          <strong>${escapeHtml(task.title)}</strong><br>
-          Status: ${escapeHtml(nice(task.status))}<br>
-          Assigned: ${escapeHtml(agent ? agent.name : "No worker assigned")}
-        `;
+      if (!tasks.length) {
+        renderEmpty(els.taskList, "No tasks loaded yet.");
       } else {
-        els.selectedTaskSummary.textContent = "Select a task card to assign, execute, or send into review.";
+        els.taskList.innerHTML = tasks.map((task) => `
+          <article class="card">
+            <div class="card-top">
+              <h4>${escapeHtml(task.title)}</h4>
+              <span class="pill">${escapeHtml(nice(task.status))}</span>
+            </div>
+            <p class="small muted" style="margin-top:8px;">${escapeHtml(task.description || "No description")}</p>
+            <div class="pill-row">
+              <span class="pill">${escapeHtml(nice(task.task_type))}</span>
+              ${task.assigned_agent_id && agentsById[task.assigned_agent_id] ? `<span class="pill blue">${escapeHtml(agentsById[task.assigned_agent_id].name)}</span>` : ""}
+            </div>
+          </article>
+        `).join("");
       }
 
-      const review = selectedReview();
-      if (review) {
-        const task = taskMap()[review.task_id];
-        els.selectedReviewSummary.innerHTML = `
-          <strong>${escapeHtml(review.summary || "Review requested")}</strong><br>
-          Task: ${escapeHtml(task ? task.title : review.task_id)}<br>
-          Status: ${escapeHtml(nice(review.status))}
-        `;
+      if (!reviews.length) {
+        renderEmpty(els.reviewList, "No reviews loaded yet.");
       } else {
-        els.selectedReviewSummary.textContent = "Select a review card to approve it or request changes.";
+        els.reviewList.innerHTML = reviews.map((review) => `
+          <article class="card">
+            <div class="card-top">
+              <h4>${escapeHtml(review.summary || "Review requested")}</h4>
+              <span class="pill gold">${escapeHtml(nice(review.status))}</span>
+            </div>
+            <p class="small muted" style="margin-top:8px;">Task ${escapeHtml(review.task_id)}</p>
+          </article>
+        `).join("");
       }
-    }
 
-    async function updateWorkspaceFrom(url, options, successMessage) {
-      const next = await fetchJson(url, options);
-      renderSnapshot(next);
-      setStatus(successMessage, "ready");
+      if (!decisions.length) {
+        renderEmpty(els.decisionList, "No decisions loaded yet.");
+      } else {
+        els.decisionList.innerHTML = decisions.map((decision) => `
+          <article class="card">
+            <div class="card-top">
+              <h4>${escapeHtml(decision.title)}</h4>
+              <span class="pill green">${escapeHtml(nice(decision.state))}</span>
+            </div>
+            <p class="small muted" style="margin-top:8px;">${escapeHtml(decision.summary || "No summary")}</p>
+          </article>
+        `).join("");
+      }
     }
 
     async function bootstrapWorkspace() {
-      els.bootstrapBtn.disabled = true;
-      setStatus("Launching demo company...", "idle");
+      els.launchBtn.disabled = true;
+      setStatus("Launching demo team...", "idle");
       try {
         const next = await fetchJson("/demo/bootstrap", { method: "POST" });
         renderSnapshot(next);
-        setStatus("Demo company is live.", "ready");
+        setStatus("Demo team is live.", "ready");
       } catch (error) {
         setStatus(error.message, "error");
       } finally {
-        els.bootstrapBtn.disabled = false;
+        els.launchBtn.disabled = false;
       }
     }
 
     async function refreshWorkspace() {
-      if (!currentWorkspaceId) return;
+      if (!workspaceId) return;
       els.refreshBtn.disabled = true;
       setStatus("Refreshing workspace...", "idle");
       try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}`, {}, "Workspace refreshed.");
+        const next = await fetchJson(`/workspaces/${workspaceId}`);
+        renderSnapshot(next);
+        setStatus("Workspace refreshed.", "ready");
       } catch (error) {
         setStatus(error.message, "error");
       } finally {
@@ -1053,133 +918,69 @@
       }
     }
 
-    async function createTask() {
-      if (!currentWorkspaceId) return;
-      const title = els.taskTitleInput.value.trim();
-      if (!title) return setStatus("Task title is required.", "error");
-      setStatus("Creating task...", "idle");
+    async function saveContext() {
+      if (!workspaceId) return;
+      setStatus("Saving company context...", "idle");
       try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks`, {
+        const next = await fetchJson(`/workspaces/${workspaceId}/context`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            title,
-            description: els.taskDescriptionInput.value.trim(),
-            task_type: els.taskTypeInput.value,
-            priority: els.taskPriorityInput.value,
-            assigned_role_id: els.roleSelect.value || null,
-            created_by: "system"
+            mission: els.contextMission.value.trim(),
+            goals: els.contextGoals.value,
+            writing_style: els.contextWritingStyle.value.trim(),
+            communication_style: els.contextCommunicationStyle.value.trim(),
+            brand_voice: els.contextBrandVoice.value.trim(),
+            domain_knowledge: els.contextKnowledge.value
           })
-        }, "Task created.");
-        els.taskTitleInput.value = "";
-        els.taskDescriptionInput.value = "";
+        });
+        renderSnapshot(next);
+        setStatus("Company context updated for every agent.", "ready");
       } catch (error) {
         setStatus(error.message, "error");
       }
     }
 
-    async function assignTask() {
-      const task = selectedTask();
-      const agentId = els.agentSelect.value;
-      if (!task || !agentId) return setStatus("Select a task and a worker.", "error");
-      setStatus("Assigning task...", "idle");
-      try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/assign`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ agent_id: agentId, actor_id: "system" })
-        }, "Task assigned.");
-      } catch (error) {
-        setStatus(error.message, "error");
+    async function sendMessage() {
+      if (!workspaceId) return;
+      const body = els.messageBody.value.trim();
+      const target = els.messageTarget.value;
+      if (!body || !target) {
+        setStatus("Choose a target and write a message.", "error");
+        return;
       }
-    }
-
-    async function executeTask() {
-      const task = selectedTask();
-      if (!task) return setStatus("Select a task first.", "error");
-      setStatus("Executing task...", "idle");
+      setStatus(`Sending message to ${groupLabel(target)}...`, "idle");
       try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/execute`, {
-          method: "POST"
-        }, "Task executed.");
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    async function requestReview() {
-      const task = selectedTask();
-      const reviewerId = els.reviewerSelect.value;
-      if (!task || !reviewerId) return setStatus("Select a task and a reviewer.", "error");
-      setStatus("Requesting review...", "idle");
-      try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/tasks/${task.task_id}/reviews`, {
+        const next = await fetchJson(`/workspaces/${workspaceId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            reviewer_id: reviewerId,
-            summary: `Review requested for '${task.title}' from the workspace UI.`
+            sender: "You",
+            target,
+            body
           })
-        }, "Review requested.");
+        });
+        renderSnapshot(next);
+        els.messageBody.value = "";
+        setStatus("Message sent.", "ready");
       } catch (error) {
         setStatus(error.message, "error");
       }
     }
 
-    async function updateReview(status) {
-      const review = selectedReview();
-      if (!review) return setStatus("Select a review first.", "error");
-      setStatus("Updating review...", "idle");
-      try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/reviews/${review.review_id}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            status,
-            actor_id: review.reviewer_id || "system",
-            summary: els.reviewSummaryInput.value.trim()
-          })
-        }, `Review marked ${nice(status).toLowerCase()}.`);
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
+    document.querySelectorAll(".tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".tab").forEach((node) => node.classList.remove("active"));
+        document.querySelectorAll(".view").forEach((node) => node.classList.remove("active"));
+        tab.classList.add("active");
+        document.getElementById(`view-${tab.dataset.view}`).classList.add("active");
+      });
+    });
 
-    async function recordDecision() {
-      if (!currentWorkspaceId) return;
-      const title = els.decisionTitleInput.value.trim();
-      const summary = els.decisionSummaryInput.value.trim();
-      if (!title || !summary) return setStatus("Decision title and summary are required.", "error");
-      const task = selectedTask();
-      setStatus("Recording decision...", "idle");
-      try {
-        await updateWorkspaceFrom(`/workspaces/${currentWorkspaceId}/decisions`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title,
-            summary,
-            state: els.decisionStateInput.value,
-            made_by: "system",
-            related_task_ids: task ? [task.task_id] : []
-          })
-        }, "Decision recorded.");
-        els.decisionTitleInput.value = "";
-        els.decisionSummaryInput.value = "";
-      } catch (error) {
-        setStatus(error.message, "error");
-      }
-    }
-
-    els.bootstrapBtn.addEventListener("click", bootstrapWorkspace);
+    els.launchBtn.addEventListener("click", bootstrapWorkspace);
     els.refreshBtn.addEventListener("click", refreshWorkspace);
-    els.createTaskBtn.addEventListener("click", createTask);
-    els.assignBtn.addEventListener("click", assignTask);
-    els.executeBtn.addEventListener("click", executeTask);
-    els.requestReviewBtn.addEventListener("click", requestReview);
-    els.approveReviewBtn.addEventListener("click", () => updateReview("approved"));
-    els.changesReviewBtn.addEventListener("click", () => updateReview("changes_requested"));
-    els.recordDecisionBtn.addEventListener("click", recordDecision);
+    els.saveContextBtn.addEventListener("click", saveContext);
+    els.sendMessageBtn.addEventListener("click", sendMessage);
   </script>
 </body>
 </html>
